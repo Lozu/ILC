@@ -1,0 +1,7 @@
+*.o
+*.s
+ilc
+
+musl-*
+!musl-install.sh
+local

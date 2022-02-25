@@ -1,0 +1,24 @@
+IL Compiler
+
+Table of Contents
+=================
+	1. About
+	2. Installation
+	3. Further reading
+
+
+1. About
+========
+Il Compiler is intermidiate language compiler.
+
+2. Installation
+===============
+If you got tarball, then set appropriate values to variables in top of
+'GNUmakefile' file. By default IL Compiler will be linked with libc that
+comes with it (See MUSL variable). This will result in static binary and it
+is an intended way to compile IL compiler.
+
+3. Further reading
+==================
+See 'doc/info.rtxt' for information about IL Compiler internals (russian
+text).
