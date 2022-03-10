@@ -1,7 +1,7 @@
 CC = gcc
 LD = ld
 
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -O0
 
 # Program name
 NAME = ilc
@@ -11,11 +11,11 @@ prefix = /usr
 
 # Musl package file (full path). Comment out to do musl-less build.
 # If present IL compiler will be linked with it, instead of system libc.
-MUSL = `pwd`/pkgs/musl-1.2.2.tar.gz
+# MUSL = `pwd`/pkgs/musl-1.2.2.tar.gz
 
 # Number of jobs to build musl. Has meaning only when MUSL variable
 # declared.
-JOBS = 8
+# JOBS = 8
 
 ### Don't edit anything below, unless you understand ###
 
@@ -28,13 +28,13 @@ sources = $(addprefix $(srcdir)/,\
 	main.c utils.c cmdargs.c process.c lparse.c)
 modules = $(sources:.c=.o)
 
+rcflags += $(CFLAGS)
+
 ifdef MUSL
 	extragoals += musl
-
-	rcflags = $(CFLAGS) -nostdinc -I $(localroot)/include
-	
+	rcflags = -nostdinc -I $(localroot)/include
 	rld = $(LD)
-	ldstart = -nostdlib\
+	ldstart = -static -nostdlib\
 			-L $(localroot)/lib\
 			$(localroot)/lib/crt1.o
 	ldend = -lc

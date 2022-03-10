@@ -21,8 +21,27 @@ enum lexem_type {
 	cmd_ret
 };
 
+struct coord {
+	int row;
+	int col;
+};
+
+union lexem_data {
+	char *str_value;
+	int number;
+};
+
+
 struct lexem_list;
 
 struct lexem_list *lexem_parse(char *filename);
+
+void ll_add(struct lexem_list *ll, enum lexem_type lt,
+		struct coord *cor, union lexem_data *dt);
+int ll_get(struct lexem_list *ll, enum lexem_type *lt,
+		struct coord *cor, union lexem_data *dt);
+struct lexem_list *ll_extract_upto_lt(struct lexem_list *l,
+		enum lexem_type lt);
+void ll_print(struct lexem_list *ll);
 
 #endif

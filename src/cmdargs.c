@@ -24,9 +24,11 @@ static void settings_check(struct settings *s);
 static void settings_complete(struct settings *sts);
 static void settings_print(struct settings *sts);
 
-struct settings * cmdargs_handle(int argc, char **argv)
+struct settings *cmdargs_handle(int argc, char **argv)
 {
 	struct settings *sts = smalloc(sizeof(struct settings));
+	memset(sts, 0, sizeof(struct settings));
+
 	if (argc == 1 || (argc == 2 && strcmp(argv[1], flag_help) == 0)) {
 		printf(msg_help, argv[0]);
 		exit(0);
@@ -56,9 +58,9 @@ struct settings * cmdargs_handle(int argc, char **argv)
 
 static void settings_check(struct settings *s)
 {
-	if (*s->input_file == 0)
+	if (s->input_file[0] == 0)
 		die("%s\n", msg_empty_ifile);
-	if (s->output_file && *s->output_file == 0)
+	if (s->output_file && s->output_file[0] == 0)
 		die("%s\n", msg_empty_ofile);
 }
 
@@ -76,8 +78,7 @@ static void settings_complete(struct settings *sts)
 		prxlen = strlen(sts->input_file);
 	sts->output_file = smalloc(prxlen + strlen(ofile_sfx) + 1);
 	memcpy(sts->output_file, sts->input_file, prxlen);
-	memcpy(sts->output_file + prxlen, ofile_sfx, strlen(ofile_sfx));
-	sts->output_file[prxlen + strlen(ofile_sfx)] = 0;
+	memcpy(sts->output_file + prxlen, ofile_sfx, strlen(ofile_sfx) + 1);
 }
 
 static void settings_print(struct settings *sts)
