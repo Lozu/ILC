@@ -5,6 +5,8 @@
 #include "utils.h"
 #include "cmdargs.h"
 #include "lparse.h"
+#include "remap.h"
+#include "func.h"
 #include "process.h"
 
 static int process_entry(FILE *res, struct lexem_list *l);
@@ -12,6 +14,7 @@ static int process_entry(FILE *res, struct lexem_list *l);
 void process(struct settings *sts)
 {
 	struct lexem_list *llist = lexem_parse(sts->input_file);
+	/* ll_print(llist); */
 	FILE *res = fopen(sts->output_file, "w");
 	if (res == NULL)
 		die("%s: %s\n", sts->output_file, strerror(errno));
@@ -43,10 +46,14 @@ static int process_entry(FILE *res, struct lexem_list *l)
 
 static void process_function(struct lexem_list *l, struct coord *fcor, FILE *res)
 {
+	struct function f;
 	struct lexem_list *funcl = ll_extract_upto_lt(l, close_brace);
+	struct sym_tbl stb;
+	struct lexem_list *rnml = remap(funcl, &stb);
 #ifdef DEBUG
-	printf("Extracted list:\n");
-	ll_print(funcl);
-	printf("Extracted list end\n");
+	printf("After\n");
+	ll_print(rnml);
 #endif
+	func_header_form(rnml, &f.fh);
+
 }

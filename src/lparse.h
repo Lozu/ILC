@@ -13,6 +13,8 @@ enum lexem_type {
 	equal_sign,
 	func_name,
 
+	var_remapped,
+
 	word,
 	func_decl,
 	int_spec,
@@ -36,6 +38,7 @@ struct lexem_list;
 
 struct lexem_list *lexem_parse(char *filename);
 
+struct lexem_list *ll_init();
 void ll_add(struct lexem_list *ll, enum lexem_type lt,
 		struct coord *cor, union lexem_data *dt);
 int ll_get(struct lexem_list *ll, enum lexem_type *lt,

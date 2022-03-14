@@ -10,15 +10,20 @@ enum {
 	max_lexem_len = 32
 };
 
-const char *msg_lxm_len_limit =
+static const char *msg_lxm_len_limit =
 	"lexem at %d, %d: lexems can't be longer than %d symbols";
-const char *print_separ = "\n";
+static const char *msg_var_zero =
+	"variable name can't be empty string";
+static const char *msg_fname_zero =
+	"function name can't be empty string";
+static const char *msg_inv_sym = "unvalid symbol";
+static const char *print_separ = "\n";
 
-const char *str_func_decl = "func";
-const char *str_int_spec = "i";
-const char *str_cmd_add = "add";
-const char *str_cmd_copy = "copy";
-const char *str_cmd_ret = "ret";
+static const char *str_func_decl = "func";
+static const char *str_int_spec = "i";
+static const char *str_cmd_add = "add";
+static const char *str_cmd_copy = "copy";
+static const char *str_cmd_ret = "ret";
 
 struct lexem {
 	struct coord cor;
@@ -71,9 +76,6 @@ static inline int is_number(char c)
 		return 1;
 	return 0;
 }
-
-static struct lexem_list *ll_init();
-
 
 static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	   	struct lexem_list *ll);
@@ -143,6 +145,8 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	} else if (buffer[0] == '$') {
 		lt = func_name;
 		eat_func_name(ifile, buffer, &dt, &lexem_start_cor, pos);
+	} else {
+		die("%d,%d: %s\n", pos->cor.row, pos->cor.col, msg_inv_sym);
 	}
 	if (lt == word)
 		lexem_clarify(buffer, &lt);
@@ -159,7 +163,7 @@ static void eat_name(FILE *ifile, char *buffer,
 			ungetc(c, ifile);
 			break;
 		}
-		if (bufpos > max_lexem_len) {
+		if (bufpos + 1 > max_lexem_len) {
 			die(msg_lxm_len_limit, start->row, start->col,
 					max_lexem_len);
 		}
@@ -179,11 +183,13 @@ static void eat_variable(FILE *ifile, char *buffer, union lexem_data *dt,
 			ungetc(c, ifile);
 			break;
 		}
-		if (bufpos > max_lexem_len)
+		if (bufpos + 1 > max_lexem_len)
 			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
 		pos_next(pos, c);
 		buffer[bufpos] = c;
 	}
+	if (bufpos == 0)
+		die("%d,%d: %s\n", start->row, start->col, msg_var_zero);
 	buffer[bufpos] = 0;
 	dt->str_value = sstrdup(buffer);
 }
@@ -198,8 +204,9 @@ static void eat_number(FILE *ifile, char *buffer, union lexem_data *dt,
 			ungetc(c, ifile);
 			break;
 		}
-		if (bufpos > max_lexem_len)
+		if (bufpos + 1 > max_lexem_len)
 			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
+		pos_next(pos, c);
 		buffer[bufpos] = c;
 	}
 	buffer[bufpos] = 0;
@@ -216,10 +223,13 @@ static void eat_func_name(FILE *ifile, char *buffer, union lexem_data *dt,
 			ungetc(c, ifile);
 			break;
 		}
-		if (bufpos > max_lexem_len)
+		if (bufpos + 1 > max_lexem_len)
 			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
+		pos_next(pos, c);
 		buffer[bufpos] = c;
 	}
+	if (bufpos == 0)
+		die("%d, %d: %s\n", start->row, start->col, msg_fname_zero);
 	buffer[bufpos] = 0;
 	dt->str_value = sstrdup(buffer);
 }
@@ -238,7 +248,7 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt)
 		*lt = cmd_ret;
 }
 
-static struct lexem_list *ll_init()
+struct lexem_list *ll_init()
 {
 	struct lexem_list *tmp = smalloc(sizeof(struct lexem_list));
 	tmp->first = tmp->last = NULL;
@@ -344,6 +354,9 @@ void ll_print(struct lexem_list *ll)
 			break;
 		case int_spec:
 			printf("Integer type specifier");
+			break;
+		case var_remapped:
+			printf("Var remapped: [%d]", tmp->data.number);
 			break;
 		case cmd_add:
 			printf("%sAdd", cmd_prx);

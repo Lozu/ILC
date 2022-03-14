@@ -11,11 +11,11 @@ prefix = /usr
 
 # Musl package file (full path). Comment out to do musl-less build.
 # If present IL compiler will be linked with it, instead of system libc.
-# MUSL = `pwd`/pkgs/musl-1.2.2.tar.gz
+#MUSL = `pwd`/pkgs/musl-1.2.2.tar.gz
 
 # Number of jobs to build musl. Has meaning only when MUSL variable
 # declared.
-# JOBS = 8
+#JOBS = 8
 
 ### Don't edit anything below, unless you understand ###
 
@@ -25,7 +25,7 @@ srcdir = src
 name = $(srcdir)/$(NAME)
 
 sources = $(addprefix $(srcdir)/,\
-	main.c utils.c cmdargs.c process.c lparse.c)
+	main.c utils.c cmdargs.c process.c lparse.c remap.c func.c)
 modules = $(sources:.c=.o)
 
 rcflags += $(CFLAGS)
