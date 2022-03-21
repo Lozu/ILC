@@ -3,12 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "utils.h"
+#include "global.h"
 #include "lparse.h"
-
-enum {
-	max_lexem_len = 32
-};
 
 static const char *msg_lxm_len_limit =
 	"lexem at %d, %d: lexems can't be longer than %d symbols";
@@ -16,8 +12,7 @@ static const char *msg_var_zero =
 	"variable name can't be empty string";
 static const char *msg_fname_zero =
 	"function name can't be empty string";
-static const char *msg_inv_sym = "unvalid symbol";
-static const char *print_separ = "\n";
+static const char *msg_inv_sym = "invalid symbol";
 
 static const char *str_func_decl = "func";
 static const char *str_int_spec = "i";
@@ -77,6 +72,7 @@ static inline int is_number(char c)
 
 static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	   	struct lexem_list *ll);
+static void debug_global_lexem_parse(struct lexem_list *l);
 
 struct lexem_list *lexem_parse(char *filename)
 {
@@ -97,6 +93,7 @@ struct lexem_list *lexem_parse(char *filename)
 	}
 	if (fclose(ifile) == -1)
 		die("%s: %s\n", filename, strerror(errno));
+	debug_global_lexem_parse(ll);
 	return ll;
 }
 
@@ -134,7 +131,7 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 		b.lt = lx_open_brace;
 	} else if (buffer[0] == '}') {
 		b.lt = lx_close_brace;
-	} else if (is_number(buffer[0])) {
+	} else if (is_number(buffer[0]) || buffer[0] == '-') {
 		b.lt = lx_number;
 		eat_number(ifile, buffer, &b.dt, &b.crd, pos);
 	} else if (buffer[0] == '=') {
@@ -245,6 +242,15 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt)
 		*lt = lx_cmd_ret;
 }
 
+static void debug_global_lexem_parse(struct lexem_list *l)
+{
+	if (debug[global_lexem_parse] == 0)
+		return;
+	fprintf(stderr, "---Global lexem parse---\n");
+	ll_print(stderr, l);
+	fprintf(stderr, "\n");
+}
+
 struct lexem_list *ll_init()
 {
 	struct lexem_list *tmp = smalloc(sizeof(struct lexem_list));
@@ -284,9 +290,6 @@ int ll_get(struct lexem_list *ll, struct lexem_block *b)
 }
 
 static void lexem_types_print(FILE *f, enum lexem_type *vec, int vec_len);
-static void lexem_print(FILE *f, int should,
-		enum lexem_type lt, union lexem_data *dt);
-
 
 int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 		enum lexem_type *ltvec, int ltvec_len)
@@ -308,8 +311,7 @@ int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 	fprintf(stderr, "%d,%d: expected ", b->crd.row, b->crd.col);
 	lexem_types_print(stderr, ltvec, ltvec_len);
 	fprintf(stderr, ", not ");
-	lexem_print(stderr, 0, b->lt, NULL);
-	fprintf(stderr, "\n");
+	fprintf(stderr, "%s\n", LNAME(b->lt, 0, NULL));
 	exit(1);
 	return -1;
 }
@@ -317,9 +319,10 @@ int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 static void lexem_types_print(FILE *f, enum lexem_type *vec, int vec_len)
 {
 	int i;
+	char *buf = alloca(lexem_alloca_size);
 	for (i = 0; i < vec_len ; ++i) {
-		lexem_print(f, 0, vec[i] > 1000000 ?
-				vec[i] - 1000000 : vec[i], NULL);
+		fprintf(f, "%s", lexem_name(buf, vec[i] > 1000000 ?
+				vec[i] - 1000000 : vec[i], 0, NULL));
 		if (i < vec_len - 1)
 			fprintf(f, " or ");
 	}
@@ -345,83 +348,46 @@ struct lexem_list *ll_extract_upto_lt(struct lexem_list *l,
 	return newl;
 }
 
-static void lexem_print(FILE *f, int should, enum lexem_type lt,
-		union lexem_data *dt)
+#define P "command-"
+
+char *lexem_names[] = {
+	[lx_word] 			=	"word",			/**/
+	[lx_new_line] 		=	"newline",
+	[lx_parenleft]		=	"parenleft",
+	[lx_parenright]		=	"parenright",
+	[lx_coma]			=	"coma",
+	[lx_variable]		=	"variable",		/**/
+	[lx_var_remapped]	=	"var",			/**/
+	[lx_open_brace]		=	"openbrace",
+	[lx_close_brace]	=	"closebrace",
+	[lx_number]			=	"number",
+	[lx_equal_sign]		=	"equal sign",
+	[lx_func_decl]		=	"function declaration",
+	[lx_func_name]		=	"functio",
+	[lx_int_spec]		=	"integer type specifier",
+	[lx_cmd_add]		=	P"add",
+	[lx_cmd_copy]		=	P"copy",
+	[lx_cmd_ret]		=	P"ret"
+};
+
+char *lexem_name(char *buf, enum lexem_type lt, int v, union lexem_data *dt)
 {
-	char *cmd_prx = "Command: ";
-	int value = 0;
-	switch (lt) {
-	case lx_new_line:
-		fprintf(f, "Newline");
-		break;
-	case lx_word:
-		fprintf(f, "Word");
-		value = 1;
-		break;
-	case lx_parenleft:
-		fprintf(f, "Parenleft");
-		break;
-	case lx_parenright:
-		fprintf(f, "Parenright");
-		break;
-	case lx_coma:
-		fprintf(f, "Coma");
-		break;
-	case lx_variable:
-		fprintf(f, "Variable");
-		value = 1;
-		break;
-	case lx_var_remapped:
-		fprintf(f, "Renamed variable");
-		value = 2;
-		break;
-	case lx_open_brace:
-		fprintf(f, "Openbrace");
-		break;
-	case lx_close_brace:
-		fprintf(f, "Closebrace");
-		break;
-	case lx_number:
-		fprintf(f, "Number");
-		value = 1;
-		break;
-	case lx_equal_sign:
-		fprintf(f, "Equal sign");
-		break;
-	case lx_func_decl:
-		fprintf(f, "Function declaration");
-		break;
-	case lx_func_name:
-		fprintf(f, "Function");
-		value = 1;
-		break;
-	case lx_int_spec:
-		fprintf(f, "Integer type specifier");
-		break;
-	case lx_cmd_add:
-		fprintf(f, "%sAdd", cmd_prx);
-		break;
-	case lx_cmd_copy:
-		fprintf(f, "%sCopy", cmd_prx);
-		break;
-	case lx_cmd_ret:
-		fprintf(f, "%sReturn", cmd_prx);
-		break;
-	}
-	if (should && value > 0) {
-		if (value == 1)
-			fprintf(f, "[%s]", dt->str_value);
+	sprintf(buf, lexem_names[lt]);
+
+	if (lt < lx_new_line && v) {
+		if (lt == lx_var_remapped)
+			sprintf(buf + strlen(lexem_names[lt]), "[%d]", dt->number);
 		else
-			fprintf(f, "[%d]", dt->number);
+			sprintf(buf + strlen(lexem_names[lt]), "[%s]", dt->str_value);
 	}
+	return buf;
 }
 
-void ll_print(struct lexem_list *ll)
+void ll_print(FILE *f, struct lexem_list *ll)
 {
 	struct lexem *tmp = ll->first;
 	for (; tmp; tmp = tmp->next) {
-		printf("%02d, %02d:", tmp->lb.crd.row, tmp->lb.crd.col);
-		lexem_print(stdout, 1, tmp->lb.lt, &tmp->lb.dt);
-		printf("%s", print_separ);
+		fprintf(f, "%02d,%02d: %s\n", tmp->lb.crd.row, tmp->lb.crd.col,
+				LNAME(tmp->lb.lt, 1, &tmp->lb.dt));
 	}
 }

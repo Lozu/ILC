@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "utils.h"
+#include "global.h"
 #include "cmdargs.h"
 
 const char *msg_help =
@@ -17,12 +17,15 @@ const char *msg_no_ifile = "no input file specified";
 const char *msg_dup_ifile = "input file already given";
 const char *msg_empty_ifile = "input file name is empty string";
 const char *msg_empty_ofile = "outputfile name is empty string";
+const char *msg_ifile_name_too_long = "input file name is too long";
+const char *msg_ofile_name_too_long = "output file name is too long";
+
 const char *ifile_sfx = ".il";
 const char *ofile_sfx = ".s";
 
 static void settings_check(struct settings *s);
 static void settings_complete(struct settings *sts);
-static void settings_print(struct settings *sts);
+static void debug_settings_print(struct settings *sts);
 
 struct settings *cmdargs_handle(int argc, char **argv)
 {
@@ -50,9 +53,7 @@ struct settings *cmdargs_handle(int argc, char **argv)
 		die("%s: %s\n", argv[1], msg_dup_ifile);
 	settings_check(sts);
 	settings_complete(sts);
-#ifdef DEBUG
-	settings_print(sts);
-#endif
+	debug_settings_print(sts);
 	return sts;
 }
 
@@ -62,27 +63,54 @@ static void settings_check(struct settings *s)
 		die("%s\n", msg_empty_ifile);
 	if (s->output_file && s->output_file[0] == 0)
 		die("%s\n", msg_empty_ofile);
+	if (strlen(s->input_file) > 256)
+		die("%s\n", msg_ifile_name_too_long);
+	if (s->output_file && strlen(s->output_file) > 256)
+		die("%s\n", msg_ofile_name_too_long);
 }
+
+static int ends_with(char *s1, char *s2);
 
 static void settings_complete(struct settings *sts)
 {
+	char buffer[267];
 	char *tmp;
-	int prxlen;
+	int pos;
 
 	if (sts->output_file)
 		return;
-	tmp = strstr(sts->input_file, ifile_sfx);
-	if (tmp)
-		prxlen = tmp - sts->input_file;
+
+	tmp = strrchr(sts->input_file, '/');
+	if (tmp == NULL)
+		pos = 0;
 	else
-		prxlen = strlen(sts->input_file);
-	sts->output_file = smalloc(prxlen + strlen(ofile_sfx) + 1);
-	memcpy(sts->output_file, sts->input_file, prxlen);
-	memcpy(sts->output_file + prxlen, ofile_sfx, strlen(ofile_sfx) + 1);
+		pos = tmp - sts->input_file + 1;
+	strcpy(buffer, sts->input_file + pos);
+
+	pos = ends_with(buffer, ifile_sfx);
+	strcpy(buffer + pos, ofile_sfx);
+	sts->output_file = strdup(buffer);
 }
 
-static void settings_print(struct settings *sts)
+static int ends_with(char *s1, char *s2)
 {
-	printf("Input file: %s\n", sts->input_file);
-	printf("Output file: %s\n", sts->output_file);
+	int i;
+	int offset = strlen(s1) - strlen(s2);
+	if (offset < 0)
+		return strlen(s1);
+	for (i = 0; s1[offset + i] != 0 && s2[i] != 0 &&
+			s1[offset + i] == s2[i]; ++i);
+	if (s2[i] != 0)
+		return strlen(s1);
+	return offset;
+}
+
+static void debug_settings_print(struct settings *sts)
+{
+	if (debug[settings] == 0)
+		return;
+	fprintf(stderr, "---Settings---\n");
+	fprintf(stderr, "Input file: %s\n", sts->input_file);
+	fprintf(stderr, "Output file: %s\n", sts->output_file);
+	fprintf(stderr, "\n");
 }

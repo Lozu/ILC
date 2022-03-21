@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "utils.h"
+#include "global.h"
 #include "lparse.h"
 #include "remap.h"
 
@@ -29,7 +29,8 @@ static int add_unique(struct str_tree *t, char *s);
 static void remap_var(struct lexem_list *res, struct lexem_block *b,
 		struct str_tree *t);
 static void var_table_fill(struct sym_tbl *tb, struct str_tree *t);
-static void array_print(struct tbl_entry *array, int len);
+static void debug_function_remapped(struct lexem_list *l,
+		struct tbl_entry *array, int len);
 	
 struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
 {
@@ -44,10 +45,7 @@ struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
 			ll_add(res, &bdata);
 	}
 	var_table_fill(tb, var_tree);
-#ifdef DEBUG
-	printf("Variables\n");
-	array_print(tb->var_array, tb->var_arr_len);
-#endif
+	debug_function_remapped(res, tb->var_array, tb->var_arr_len);
 	return res;
 }
 
@@ -92,11 +90,18 @@ static void __transform_tree(struct tbl_entry *array, struct node *null,
 	}
 }
 
-static void array_print(struct tbl_entry *array, int len)
+static void debug_function_remapped(struct lexem_list *l,
+		struct tbl_entry *array, int len)
 {
 	int i;
+	if (debug[function_remapped] == 0)
+		return;
+	fprintf(stderr, "---Function remapped---\n");
+	ll_print(stderr, l);
+	fprintf(stderr, "Variables:\n");
 	for (i = 0; i < len; ++i)
-		printf("%d: [%s]\n", i, array[i].name);
+		printf("\t%d: \'%s\'\n", i, array[i].name);
+	fprintf(stderr, "\n");
 }
 
 static struct node *getnode(struct str_tree *t);

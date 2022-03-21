@@ -25,7 +25,7 @@ srcdir = src
 name = $(srcdir)/$(NAME)
 
 sources = $(addprefix $(srcdir)/,\
-	main.c utils.c cmdargs.c process.c lparse.c remap.c func.c cmd.c)
+	main.c global.c cmdargs.c process.c lparse.c remap.c func.c)
 modules = $(sources:.c=.o)
 
 rcflags += $(CFLAGS)
@@ -42,7 +42,7 @@ else
 	rld = $(CC)
 endif
 
-rcflags += -Wno-discarded-qualifiers -DDEBUG
+rcflags += -Wno-discarded-qualifiers
 
 def: cmp
 
