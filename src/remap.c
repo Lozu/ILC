@@ -26,12 +26,6 @@ static const struct node null = { NULL, -1, 0, &null, &null, &null };
 static struct str_tree *t_init();
 static int add_unique(struct str_tree *t, char *s);
 
-struct lexem_block {
-	enum lexem_type lt;
-	struct coord crd;
-	union lexem_data dt;
-};
-
 static void remap_var(struct lexem_list *res, struct lexem_block *b,
 		struct str_tree *t);
 static void var_table_fill(struct sym_tbl *tb, struct str_tree *t);
@@ -43,11 +37,11 @@ struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
 	struct lexem_block bdata;
 	struct str_tree *var_tree = t_init();
 
-	while (ll_get(l, &bdata.lt, &bdata.crd, &bdata.dt)) {
-		if (bdata.lt == variable)
+	while (ll_get(l, &bdata)) {
+		if (bdata.lt == lx_variable)
 			remap_var(res, &bdata, var_tree);
 		else
-			ll_add(res, bdata.lt, &bdata.crd, &bdata.dt);
+			ll_add(res, &bdata);
 	}
 	var_table_fill(tb, var_tree);
 #ifdef DEBUG
@@ -60,9 +54,9 @@ struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
 static void remap_var(struct lexem_list *res, struct lexem_block *b,
 		struct str_tree *t) 
 {
-	union lexem_data dt;
-	dt.number = add_unique(t, b->dt.str_value);
-	ll_add(res, var_remapped, &b->crd, &dt);
+	b->dt.number = add_unique(t, b->dt.str_value);
+	b->lt = lx_var_remapped;
+	ll_add(res, b);
 }
 
 static void transform_tree(struct tbl_entry *tbe, struct str_tree *t);

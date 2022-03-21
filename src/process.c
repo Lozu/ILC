@@ -7,6 +7,7 @@
 #include "lparse.h"
 #include "remap.h"
 #include "func.h"
+#include "cmd.h"
 #include "process.h"
 
 static int process_entry(FILE *res, struct lexem_list *l);
@@ -21,22 +22,20 @@ void process(struct settings *sts)
 	while (process_entry(res, llist));
 }
 
-static void process_function(struct lexem_list *l, struct coord *fcor,
-		FILE *res);
+static void process_function(struct lexem_list *l, FILE *res);
 
 static int process_entry(FILE *res, struct lexem_list *l)
 {
-	enum lexem_type lt;
-	struct coord cor;
+	struct lexem_block b;
 
-	if (ll_get(l, &lt, &cor, NULL) == 0)
+	if (ll_get(l, &b) == 0)
 		return 0;
 
-	switch(lt) {
-	case new_line:
+	switch(b.lt) {
+	case lx_new_line:
 		break;
-	case func_decl:
-		process_function(l, &cor, res);
+	case lx_func_decl:
+		process_function(l, res);
 		break;
 	default:
 		die("Not a function\n");
@@ -44,16 +43,15 @@ static int process_entry(FILE *res, struct lexem_list *l)
 	return 1;
 }
 
-static void process_function(struct lexem_list *l, struct coord *fcor, FILE *res)
+static void process_function(struct lexem_list *l, FILE *res)
 {
 	struct function f;
-	struct lexem_list *funcl = ll_extract_upto_lt(l, close_brace);
-	struct sym_tbl stb;
-	struct lexem_list *rnml = remap(funcl, &stb);
+	struct lexem_list *funcl = ll_extract_upto_lt(l, lx_close_brace);
+	struct lexem_list *rnml = remap(funcl, &f.stb);
 #ifdef DEBUG
 	printf("After\n");
 	ll_print(rnml);
 #endif
-	func_header_form(rnml, &f.fh);
-
+	func_header_form(rnml, &f);
+	cmd_form(rnml, &f);
 }

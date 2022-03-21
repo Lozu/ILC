@@ -12,7 +12,7 @@ void die(char *fmt, ...)
 {
 	va_list vl;
 	va_start(vl, fmt);
-	fprintf(stderr, "%s: ", error_prefix);
+	fprintf(stderr, "%s:", error_prefix);
 	vfprintf(stderr, fmt, vl);
 	va_end(vl);
 	exit(1);

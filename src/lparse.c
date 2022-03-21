@@ -1,5 +1,5 @@
 #include <errno.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -26,9 +26,7 @@ static const char *str_cmd_copy = "copy";
 static const char *str_cmd_ret = "ret";
 
 struct lexem {
-	struct coord cor;
-	enum lexem_type lt;
-	union lexem_data data;
+	struct lexem_block lb;
 	struct lexem *next;
 };
 
@@ -116,41 +114,40 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt);
 static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	   	struct lexem_list *ll)
 {
-	struct coord lexem_start_cor = pos->cor;
-	enum lexem_type lt;
-	union lexem_data dt;
+	struct lexem_block b;
+	b.crd = pos->cor;
 	if (buffer[0] == '\n') {
-		lt = new_line;
+		b.lt = lx_new_line;
 	} else if(is_alpha(buffer[0])) {
-		lt = word;
-		eat_name(ifile, buffer, &lexem_start_cor, pos);
+		b.lt = lx_word;
+		eat_name(ifile, buffer, &b.crd, pos);
 	} else if (buffer[0] == '(') {
-		lt = parenleft;
+		b.lt = lx_parenleft;
 	} else if (buffer[0] == ')') {
-		lt = parenright;
+		b.lt = lx_parenright;
 	} else if (buffer[0] == ',') {
-		lt = coma;
+		b.lt = lx_coma;
 	} else if (buffer[0] == '%') {
-		lt = variable;
-		eat_variable(ifile, buffer, &dt, &lexem_start_cor, pos);
+		b.lt = lx_variable;
+		eat_variable(ifile, buffer, &b.dt, &b.crd, pos);
 	} else if (buffer[0] == '{') {
-		lt = open_brace;
+		b.lt = lx_open_brace;
 	} else if (buffer[0] == '}') {
-		lt = close_brace;
+		b.lt = lx_close_brace;
 	} else if (is_number(buffer[0])) {
-		lt = number;
-		eat_number(ifile, buffer, &dt, &lexem_start_cor, pos);
+		b.lt = lx_number;
+		eat_number(ifile, buffer, &b.dt, &b.crd, pos);
 	} else if (buffer[0] == '=') {
-		lt = equal_sign;
+		b.lt = lx_equal_sign;
 	} else if (buffer[0] == '$') {
-		lt = func_name;
-		eat_func_name(ifile, buffer, &dt, &lexem_start_cor, pos);
+		b.lt = lx_func_name;
+		eat_func_name(ifile, buffer, &b.dt, &b.crd, pos);
 	} else {
 		die("%d,%d: %s\n", pos->cor.row, pos->cor.col, msg_inv_sym);
 	}
-	if (lt == word)
-		lexem_clarify(buffer, &lt);
-	ll_add(ll, lt, &lexem_start_cor, &dt);
+	if (b.lt == lx_word)
+		lexem_clarify(buffer, &b.lt);
+	ll_add(ll, &b);
 }
 
 static void eat_name(FILE *ifile, char *buffer,
@@ -237,15 +234,15 @@ static void eat_func_name(FILE *ifile, char *buffer, union lexem_data *dt,
 static void lexem_clarify(char *buffer, enum lexem_type *lt)
 {
 	if (strcmp(buffer, str_func_decl) == 0)
-		*lt = func_decl;
+		*lt = lx_func_decl;
 	else if(strcmp(buffer, str_int_spec) == 0)
-		*lt = int_spec;
+		*lt = lx_int_spec;
 	else if(strcmp(buffer, str_cmd_add) == 0)
-		*lt = cmd_add;
+		*lt = lx_cmd_add;
 	else if(strcmp(buffer, str_cmd_copy) == 0)
-		*lt = cmd_copy;
+		*lt = lx_cmd_copy;
 	else if(strcmp(buffer, str_cmd_ret) == 0)
-		*lt = cmd_ret;
+		*lt = lx_cmd_ret;
 }
 
 struct lexem_list *ll_init()
@@ -256,24 +253,22 @@ struct lexem_list *ll_init()
 	return tmp;
 }
 
-void ll_add(struct lexem_list *ll, enum lexem_type lt,
-		struct coord *cor, union lexem_data *dt)
+void ll_add(struct lexem_list *ll, struct lexem_block *b)
 {
-	if (lt == new_line && ll->last_is_nl)
+	if (b->lt == lx_new_line && ll->last_is_nl)
 		return;
 	if (ll->first == NULL)
 		ll->first = ll->last = smalloc(sizeof(struct lexem));
 	else
 		ll->last = ll->last->next = smalloc(sizeof(struct lexem));
-	ll->last->lt = lt;
-	ll->last->cor = *cor;
-	ll->last->data = *dt;
+	ll->last->lb.lt = b->lt;
+	ll->last->lb.crd = b->crd;
+	ll->last->lb.dt = b->dt;
 	ll->last->next = NULL;
-	ll->last_is_nl = lt == new_line;
+	ll->last_is_nl = b->lt == lx_new_line;
 }
 
-int ll_get(struct lexem_list *ll, enum lexem_type *lt,
-		struct coord *cor, union lexem_data *dt)
+int ll_get(struct lexem_list *ll, struct lexem_block *b)
 {
 	struct lexem *tmp;
 	if (ll->first == NULL)
@@ -282,11 +277,52 @@ int ll_get(struct lexem_list *ll, enum lexem_type *lt,
 		ll->last = NULL;
 	tmp = ll->first;
 	ll->first = ll->first->next;
-	*lt = tmp->lt;
-	*cor = tmp->cor;
-	if (dt)
-		*dt = tmp->data;
+	b->lt = tmp->lb.lt;
+	b->crd = tmp->lb.crd;
+	b->dt = tmp->lb.dt;
 	return 1;
+}
+
+static void lexem_types_print(FILE *f, enum lexem_type *vec, int vec_len);
+static void lexem_print(FILE *f, int should,
+		enum lexem_type lt, union lexem_data *dt);
+
+
+int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
+		enum lexem_type *ltvec, int ltvec_len)
+{
+	int i;
+	if (ll_get(l, b) == 0) {
+		fprintf(stderr, "expected ");
+		lexem_types_print(stderr, ltvec, ltvec_len);
+		fprintf(stderr, ", not eof\n");
+	}
+	for (i = 0; i < ltvec_len; ++i) {
+		if (ltvec[i] >= 1000000) {
+			if (b->lt >= ltvec[i] - 1000000)
+				return i;
+		} else if (b->lt == ltvec[i]) {
+			return i;
+		}
+	}
+	fprintf(stderr, "%d,%d: expected ", b->crd.row, b->crd.col);
+	lexem_types_print(stderr, ltvec, ltvec_len);
+	fprintf(stderr, ", not ");
+	lexem_print(stderr, 0, b->lt, NULL);
+	fprintf(stderr, "\n");
+	exit(1);
+	return -1;
+}
+
+static void lexem_types_print(FILE *f, enum lexem_type *vec, int vec_len)
+{
+	int i;
+	for (i = 0; i < vec_len ; ++i) {
+		lexem_print(f, 0, vec[i] > 1000000 ?
+				vec[i] - 1000000 : vec[i], NULL);
+		if (i < vec_len - 1)
+			fprintf(f, " or ");
+	}
 }
 
 struct lexem_list *ll_extract_upto_lt(struct lexem_list *l,
@@ -295,7 +331,7 @@ struct lexem_list *ll_extract_upto_lt(struct lexem_list *l,
 	struct lexem_list *newl = ll_init();
 	struct lexem **tmp = &l->first;
 
-	for (; *tmp && ((*tmp)->lt != lt); tmp = &(*tmp)->next);
+	for (; *tmp && ((*tmp)->lb.lt != lt); tmp = &(*tmp)->next);
 
 	if (*tmp == NULL)
 		return NULL;
@@ -309,65 +345,83 @@ struct lexem_list *ll_extract_upto_lt(struct lexem_list *l,
 	return newl;
 }
 
+static void lexem_print(FILE *f, int should, enum lexem_type lt,
+		union lexem_data *dt)
+{
+	char *cmd_prx = "Command: ";
+	int value = 0;
+	switch (lt) {
+	case lx_new_line:
+		fprintf(f, "Newline");
+		break;
+	case lx_word:
+		fprintf(f, "Word");
+		value = 1;
+		break;
+	case lx_parenleft:
+		fprintf(f, "Parenleft");
+		break;
+	case lx_parenright:
+		fprintf(f, "Parenright");
+		break;
+	case lx_coma:
+		fprintf(f, "Coma");
+		break;
+	case lx_variable:
+		fprintf(f, "Variable");
+		value = 1;
+		break;
+	case lx_var_remapped:
+		fprintf(f, "Renamed variable");
+		value = 2;
+		break;
+	case lx_open_brace:
+		fprintf(f, "Openbrace");
+		break;
+	case lx_close_brace:
+		fprintf(f, "Closebrace");
+		break;
+	case lx_number:
+		fprintf(f, "Number");
+		value = 1;
+		break;
+	case lx_equal_sign:
+		fprintf(f, "Equal sign");
+		break;
+	case lx_func_decl:
+		fprintf(f, "Function declaration");
+		break;
+	case lx_func_name:
+		fprintf(f, "Function");
+		value = 1;
+		break;
+	case lx_int_spec:
+		fprintf(f, "Integer type specifier");
+		break;
+	case lx_cmd_add:
+		fprintf(f, "%sAdd", cmd_prx);
+		break;
+	case lx_cmd_copy:
+		fprintf(f, "%sCopy", cmd_prx);
+		break;
+	case lx_cmd_ret:
+		fprintf(f, "%sReturn", cmd_prx);
+		break;
+	}
+	if (should && value > 0) {
+		if (value == 1)
+			fprintf(f, "[%s]", dt->str_value);
+		else
+			fprintf(f, "[%d]", dt->number);
+	}
+}
+
 void ll_print(struct lexem_list *ll)
 {
 	struct lexem *tmp = ll->first;
-	char *cmd_prx = "Command: ";
 	for (; tmp; tmp = tmp->next) {
-		printf("%02d, %02d:", tmp->cor.row, tmp->cor.col);
-		switch(tmp->lt)	{
-		case new_line:
-			printf("Newline");
-			break;
-		case word:
-			printf("Word");
-			break;
-		case parenleft:
-			printf("Parenleft");
-			break;
-		case parenright:
-			printf("Parenright");
-			break;
-		case coma:
-			printf("Coma");
-			break;
-		case variable:
-			printf("Var:[%s]", tmp->data.str_value);
-			break;
-		case open_brace:
-			printf("OpenBrace");
-			break;
-		case close_brace:
-			printf("CloseBrace");
-			break;
-		case number:
-			printf("Number:[%s]", tmp->data.str_value);
-			break;
-		case equal_sign:
-			printf("Equal sign");
-			break;
-		case func_decl:
-			printf("Function declaration");
-			break;
-		case func_name:
-			printf("function:[%s]", tmp->data.str_value);
-			break;
-		case int_spec:
-			printf("Integer type specifier");
-			break;
-		case var_remapped:
-			printf("Var remapped: [%d]", tmp->data.number);
-			break;
-		case cmd_add:
-			printf("%sAdd", cmd_prx);
-			break;
-		case cmd_copy:
-			printf("%sCopy", cmd_prx);
-			break;
-		case cmd_ret:
-			printf("%sRet", cmd_prx);
-			break;
-		}
+		printf("%02d, %02d:", tmp->lb.crd.row, tmp->lb.crd.col);
+		lexem_print(stdout, 1, tmp->lb.lt, &tmp->lb.dt);
 		printf("%s", print_separ);
 	}
 }
