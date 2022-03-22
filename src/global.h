@@ -2,11 +2,12 @@
 #define UTILS_H
 
 enum {
-	settings,
-	global_lexem_parse,
-	function_header,
-	function_remapped,
-	commands
+	dbg_settings,
+	dbg_global_lexem_parse,
+	dbg_function_header,
+	dbg_function_remapped,
+	dbg_commands,
+	dbg_livespan
 };
 
 extern char debug[];

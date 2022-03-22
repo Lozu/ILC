@@ -94,7 +94,7 @@ static void debug_function_remapped(struct lexem_list *l,
 		struct tbl_entry *array, int len)
 {
 	int i;
-	if (debug[function_remapped] == 0)
+	if (debug[dbg_function_remapped] == 0)
 		return;
 	fprintf(stderr, "---Function remapped---\n");
 	ll_print(stderr, l);

@@ -25,7 +25,7 @@ srcdir = src
 name = $(srcdir)/$(NAME)
 
 sources = $(addprefix $(srcdir)/,\
-	main.c global.c cmdargs.c process.c lparse.c remap.c func.c)
+	main.c global.c cmdargs.c process.c lparse.c remap.c func.c alloc.c)
 modules = $(sources:.c=.o)
 
 rcflags += $(CFLAGS)

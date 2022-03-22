@@ -244,7 +244,7 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt)
 
 static void debug_global_lexem_parse(struct lexem_list *l)
 {
-	if (debug[global_lexem_parse] == 0)
+	if (debug[dbg_global_lexem_parse] == 0)
 		return;
 	fprintf(stderr, "---Global lexem parse---\n");
 	ll_print(stderr, l);
@@ -363,7 +363,7 @@ char *lexem_names[] = {
 	[lx_number]			=	"number",
 	[lx_equal_sign]		=	"equal sign",
 	[lx_func_decl]		=	"function declaration",
-	[lx_func_name]		=	"functio",
+	[lx_func_name]		=	"function",
 	[lx_int_spec]		=	"integer type specifier",
 	[lx_cmd_add]		=	P"add",
 	[lx_cmd_copy]		=	P"copy",

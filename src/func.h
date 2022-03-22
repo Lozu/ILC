@@ -4,11 +4,6 @@
 #include "remap.h"
 #include "lparse.h"
 
-enum type {
-	void_t = 1,
-	int_t = 2,
-};
-
 enum {
 	cmd_copy,
 	cmd_add,
@@ -30,18 +25,30 @@ struct command {
 	int type;
 	struct coord pos;
 
-	enum type rtype;
+	char rpat;
 	struct cmd_unit ret_var;
 
-	int arg_number;
 	struct cmd_unit *args;
+	int arg_number;
+	char *argpat;
+	int arg_pat;
+};
+
+struct cmd_list_el {
+	struct command cmd;
+	struct cmd_list_el *next;
+};
+
+struct cmd_list {
+	struct cmd_list_el *first;
+	struct cmd_list_el *last;
 };
 
 struct function {
 	char *name;
 	struct coord pos;
 
-	enum type rt;
+	char type;
 	int arg_number;
 	struct sym_tbl stb;
 	struct cmd_list *cl;

@@ -6,11 +6,12 @@
 #include "global.h"
 
 char debug[] = {
-	[settings] = 1,
-	[global_lexem_parse] = 1,
-	[function_header] = 1,
-	[function_remapped] = 1,
-	[commands] = 1
+	[dbg_settings] = 1,
+	[dbg_global_lexem_parse] = 1,
+	[dbg_function_header] = 1,
+	[dbg_function_remapped] = 1,
+	[dbg_commands] = 1,
+	[dbg_livespan] = 1
 };
 
 const char *error_prefix = "error";

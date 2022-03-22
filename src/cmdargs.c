@@ -107,7 +107,7 @@ static int ends_with(char *s1, char *s2)
 
 static void debug_settings_print(struct settings *sts)
 {
-	if (debug[settings] == 0)
+	if (debug[dbg_settings] == 0)
 		return;
 	fprintf(stderr, "---Settings---\n");
 	fprintf(stderr, "Input file: %s\n", sts->input_file);
