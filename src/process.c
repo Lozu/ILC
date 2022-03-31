@@ -46,9 +46,12 @@ static int process_entry(FILE *res, struct lexem_list *l)
 static void process_function(struct lexem_list *l, FILE *res)
 {
 	struct function f;
+	struct alloc alloc_table;
 	struct lexem_list *funcl = ll_extract_upto_lt(l, lx_close_brace);
 	struct lexem_list *rnml = remap(funcl, &f.stb);
+
 	func_header_form(rnml, &f);
 	cmd_form(rnml, &f);
-	allocate(f.cl, f.arg_number, f.stb.var_arr_len);
+
+	allocate(&f, &alloc_table);
 }

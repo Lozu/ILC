@@ -10,13 +10,12 @@ enum {
 	cmd_ret
 };
 
-enum unit_type {
-	ut_num = 1,
-	ut_var = 2
+enum {
+	func_max_args = 128,
 };
 
 struct cmd_unit {
-	enum unit_type type;
+	char type;
 	long long id;
 	struct coord pos;
 };
@@ -25,13 +24,10 @@ struct command {
 	int type;
 	struct coord pos;
 
-	char rpat;
 	struct cmd_unit ret_var;
 
 	struct cmd_unit *args;
 	int arg_number;
-	char *argpat;
-	int arg_pat;
 };
 
 struct cmd_list_el {

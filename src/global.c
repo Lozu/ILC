@@ -11,12 +11,13 @@ char debug[] = {
 	[dbg_function_header] = 1,
 	[dbg_function_remapped] = 1,
 	[dbg_commands] = 1,
-	[dbg_livespan] = 1
+	[dbg_lifespan] = 1,
+	[dbg_allocation] = 1
 };
 
-const char *error_prefix = "error";
-const char *warn_prefix = "warning";
-const char *malloc_failed = "malloc failure";
+static const char *error_prefix = "error";
+static const char *warn_prefix = "warning";
+static const char *malloc_failed = "malloc failure";
 
 static void inform(int mode, char *fmt, va_list vl)
 {

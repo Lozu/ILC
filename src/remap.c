@@ -100,7 +100,7 @@ static void debug_function_remapped(struct lexem_list *l,
 	ll_print(stderr, l);
 	fprintf(stderr, "Variables:\n");
 	for (i = 0; i < len; ++i)
-		printf("\t%d: \'%s\'\n", i, array[i].name);
+		fprintf(stderr, "\t%d: \'%s\'\n", i, array[i].name);
 	fprintf(stderr, "\n");
 }
 

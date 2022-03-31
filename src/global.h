@@ -7,7 +7,8 @@ enum {
 	dbg_function_header,
 	dbg_function_remapped,
 	dbg_commands,
-	dbg_livespan
+	dbg_lifespan,
+	dbg_allocation
 };
 
 extern char debug[];

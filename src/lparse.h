@@ -1,6 +1,8 @@
 #ifndef LPARSE_H
 #define LPARSE_H
 
+#include <alloca.h>
+
 enum lexem_type {
 	lx_word,
 	lx_number,

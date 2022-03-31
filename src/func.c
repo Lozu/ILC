@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <limits.h>
+#include <alloca.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,14 +12,9 @@
 #include "lparse.h"
 #include "global.h"
 
-enum {
-	func_max_arg_number = 6,
-	cmd_arg_variations = 2
-};
-
 static const struct {
 	char rt;
-	char *args[cmd_arg_variations + 1];
+	char *args[3];
 } command_patterns[] = {
 	[cmd_copy]	=	{ 'i',	{ "n", "i", NULL } },
 	[cmd_add]	=	{ 'i',	{ "ii", NULL } },
@@ -69,13 +65,13 @@ static int fdecl_eat_arg(struct lexem_list *l, int anum, struct function *f);
 static void fdecl_eat_args(struct lexem_list *l, struct function *f)
 {
 	int arg_number = 0;
-	for (; arg_number < func_max_arg_number; ++arg_number) {
+	for (; arg_number < func_max_args; ++arg_number) {
 		if (fdecl_eat_arg(l, arg_number, f) == 0) {
 			++arg_number;
 			break;
 		}
 	}
-	if (arg_number == func_max_arg_number) {
+	if (arg_number == func_max_args) {
 		die("%s:[%d, %d]: %s\n", f->name, f->pos.row, f->pos.col,
 				func_too_many_args);
 	}
@@ -131,7 +127,6 @@ static void cmd_primal_form(struct lexem_list *l, struct function *f)
 }
 
 static void cmd_eat_args(struct lexem_list *l, struct command *c);
-static void cmd_form_pattern(struct command *c);
 
 static int cmd_extract(struct lexem_list *l, struct cmd_list *cl)
 {
@@ -149,7 +144,7 @@ static int cmd_extract(struct lexem_list *l, struct cmd_list *cl)
 	case 1:
 		return 0;
 	case 2:
-		cmd.rpat = 'i';
+		cmd.ret_var.type = 'i';
 		cmd.ret_var.id = b.dt.number;
 		cmd.ret_var.pos = b.crd;
 		lexem_clever_get(l, &b, vec2, 1);
@@ -157,13 +152,12 @@ static int cmd_extract(struct lexem_list *l, struct cmd_list *cl)
 		type_ready = 1;
 	case 3:
 		if (type_ready == 0)
-			cmd.rpat = 0;
+			cmd.ret_var.type = 'v';
 		cmd.type = b.lt - 1000;
 		cmd.pos = b.crd;
 		break;
 	}
 	cmd_eat_args(l, &cmd);
-	cmd_form_pattern(&cmd);
 	cmd_list_add(cl, &cmd);
 	return 1;
 }
@@ -172,14 +166,14 @@ static int cmd_eat_arg(struct lexem_list *l, struct cmd_unit *arg, int *pos);
 
 static void cmd_eat_args(struct lexem_list *l, struct command *c)
 {
-	struct cmd_unit argbuf[128];
+	struct cmd_unit argbuf[func_max_args];
 	int argbuf_pos = 0;
-	while (argbuf_pos < 128) {
+	while (argbuf_pos < func_max_args) {
 		if (cmd_eat_arg(l, argbuf + argbuf_pos, &argbuf_pos) == 0)
 			break;
 	}
 
-	if (argbuf_pos == 128)
+	if (argbuf_pos == func_max_args)
 		die("%d: %s\n", c->pos.row, msg_too_many_args);
 
 	c->args = smalloc(argbuf_pos * sizeof(struct cmd_unit));
@@ -196,11 +190,11 @@ static int cmd_eat_arg(struct lexem_list *l, struct cmd_unit *arg, int *pos)
 	struct lexem_block b;
 	switch(lexem_clever_get(l, &b, vec1, 3)) {
 	case 0:
-		arg->type = ut_var;
+		arg->type = 'i';
 		arg->id = b.dt.number;
 		break;
 	case 1:
-		arg->type = ut_num;
+		arg->type = 'n';
 		arg->id = convert_number(b.dt.str_value, &b.crd);
 		break;
 	case 2:
@@ -229,18 +223,18 @@ static long long convert_number(char *s, struct coord *pos)
 	return res;
 }
 
-static void cmd_form_pattern(struct command *c)
+static char *get_argpat(char *buf, struct command *c)
 {
 	int i;
-	c->argpat = smalloc(c->arg_number + 1);
-	for (i = 0; i < c->arg_number; ++i) {
-		if (c->args[i].type == ut_var)
-			c->argpat[i] = 'i';
-		else
-			c->argpat[i] = 'n';
-	}
-	c->argpat[i] = 0;
+	for (i = 0; i < c->arg_number; ++i)
+		buf[i] = c->args[i].type;
+	buf[i] = 0;
+	return buf;
 }
+
+#define GET_ARGPAT(c) \
+		({ char *buf = alloca(func_max_args + 1); \
+		get_argpat(buf, (c)); })
 
 static void debug_print_arg(struct cmd_unit *u, int last);
 
@@ -252,14 +246,15 @@ static void debug_commands(struct cmd_list *l)
 	fprintf(stderr, "---Commands---\n");
 	for (tmp = l->first; tmp; tmp = tmp->next) {
 		int i;
-		if (tmp->cmd.rpat == 'i')
+		if (tmp->cmd.ret_var.type == 'i')
 			fprintf(stderr, "  [%lld]\t", tmp->cmd.ret_var.id);
 		else
 			fprintf(stderr, "  \t");
+
 		fprintf(stderr, "%s(%c:%s):\t",
-				LNAME(tmp->cmd.type + 1000, 1, NULL),
-				tmp->cmd.rpat == 0 ? 'e' : tmp->cmd.rpat,
-				tmp->cmd.argpat);
+				LNAME(tmp->cmd.type + 1000, 1, NULL), tmp->cmd.ret_var.type,
+				GET_ARGPAT(&tmp->cmd));
+
 		for (i = 0; i < tmp->cmd.arg_number; ++i) {
 			debug_print_arg(tmp->cmd.args + i,
 					i + 1 == tmp->cmd.arg_number);
@@ -272,10 +267,10 @@ static void debug_commands(struct cmd_list *l)
 static void debug_print_arg(struct cmd_unit *u, int last)
 {
 	switch(u->type) {
-	case ut_num:
+	case 'n':
 		fprintf(stderr, "%lld", u->id);
 		break;
-	case ut_var:
+	case 'i':
 		fprintf(stderr, "[%lld]", u->id);
 		break;
 	}
@@ -302,7 +297,7 @@ static void availability_check(int func_args, struct cmd_list *l,
 
 	for (tmp = l->first; tmp; tmp = tmp->next) {
 		acheck_args(&table, tmp->cmd.args, tmp->cmd.arg_number);
-		if (tmp->cmd.rpat == 'i')
+		if (tmp->cmd.ret_var.type == 'i')
 			acheck_inc_res(&table, &tmp->cmd.ret_var);
 	}
 }
@@ -312,7 +307,7 @@ static void acheck_args(struct acheck_tbl *t, struct cmd_unit *array,
 {
 	int i;
 	for (i = 0; i < len; ++i) {
-		if (array[i].type == ut_var && t->tbl[array[i].id] == 0)
+		if (array[i].type == 'i' && t->tbl[array[i].id] == 0)
 			die("%d,%d: arg %d undeclared\n", array[i].pos.row,
 					array[i].pos.col, i + 1);
 	}
@@ -323,32 +318,30 @@ static void acheck_inc_res(struct acheck_tbl *t, struct cmd_unit *res)
 	t->tbl[res->id] = 1;
 }
 
-static int tv_check_args(int ctype, struct coord *pos, char *pat);
+static void tv_check_args(struct command *c);
 static void tv_check_ret(int ctype, struct coord *pos, char rtype);
 
 static void type_validity_check(struct cmd_list *l)
 {
 	struct cmd_list_el *tmp;
 	for (tmp = l->first; tmp; tmp = tmp->next) {
-		tmp->cmd.arg_pat = tv_check_args(tmp->cmd.type, &tmp->cmd.pos,
-				tmp->cmd.argpat);
-		tv_check_ret(tmp->cmd.type, &tmp->cmd.pos, tmp->cmd.rpat);
+		tv_check_args(&tmp->cmd);
+		tv_check_ret(tmp->cmd.type, &tmp->cmd.pos, tmp->cmd.ret_var.type);
 	}
 }
 
-static int tv_check_args(int ctype, struct coord *pos, char *pat)
+static void tv_check_args(struct command *c)
 {
-	char **tmp = command_patterns[ctype].args;
+	char **tmp = command_patterns[c->type].args;
 	int i;
 	for (i = 0; tmp[i]; ++i) {
-		if (strcmp(*tmp, pat) == 0)
-			return i;
+		if (strcmp(*tmp, GET_ARGPAT(c)) == 0)
+			return;
 	}
 	if (!tmp[i]) {
-		die("%d: %s - invalid pattern (%s)\n", pos->row,
-				LNAME(ctype + 1000, 0, NULL), pat);
+		die("%d: %s - invalid pattern (%s)\n", c->pos.row,
+				LNAME(c->ret_var.type + 1000, 0, NULL), GET_ARGPAT(c));
 	}
-	return -1;
 }
 
 static void tv_check_ret(int ctype, struct coord *pos, char rtype)
