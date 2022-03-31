@@ -19,6 +19,8 @@ static const char *error_prefix = "error";
 static const char *warn_prefix = "warning";
 static const char *malloc_failed = "malloc failure";
 
+FILE *output_file = NULL;
+
 static void inform(int mode, char *fmt, va_list vl)
 {
 	char *prx;
@@ -28,9 +30,8 @@ static void inform(int mode, char *fmt, va_list vl)
 		prx = warn_prefix;
 	fprintf(stderr, "%s:", prx);
 	vfprintf(stderr, fmt, vl);
-	if (mode == 1) {
+	if (mode == 1)
 		exit(1);
-	}
 }
 
 void die(char *fmt, ...)

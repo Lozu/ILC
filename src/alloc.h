@@ -16,8 +16,8 @@ enum {
 	r13,
 	r14,
 	r15,
-	rax,
-	registers_number
+	rax, /* Temporary register */
+	registers_number = 3
 };
 
 enum alloc_type {

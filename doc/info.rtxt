@@ -64,27 +64,55 @@ bystart - массив интервалов переменных отсорти�
 byend - массив интервалов переменных отсортированный по концам
 in_need - структура содержащая живие переменные, которым выдали память.
 
-foreach i in bystart
-	foreach j in in_need
-		if j.end < i.start
-			remove j from in_need
+allocate(bystart, byend, in_need) {
+	while (pos = getpos(bystart, byend))
+		remove all variables in in_need, whose .end < pos
 
-	foreach j in byend, whose end < i.start
-		if j occupy register
-			free j.register
-		remove j from byend
+		if pos taken from byend
+			free_var(pos)
 
-	if free register present
+		if pos taken from bystart
+			allocate_var(pos)
+
+		give_to_inneed()
+}
+
+getpos(bystart, byend) {
+	pos = POSTYPE_MAX
+	mask = not_from_any
+	if bystart.first exists and bystart.first.start < pos
+		pos = bystart.first.start
+		mask = from_bystart
+	if byend.first exists and bystart.first.end + 1 < pos
+		pos = bystart.first.end + 1
+		mask |= from_byend
+	return pos
+}
+
+free_var(i) {
+	while byend.first.end < pos
+		i <- extract first from byend
+
+		if i occupied register
+			free i.reg
+}
+
+allocate_var(pos) {
+	while bystart.first.start = pos
+		i <- extract first from bystart
+
+		if free registers present
+			give i register
+		else
+			give i memory
+			add i to in_need
+}
+
+give_to_inneed() {
+	while in_need is not empty and free registers present
+		i <- take varible from inneed with highest .end
 		give i register
-	else
-		give i memory
-		add i to in_need
-
-	foreach j in in_need
-		if all registers occupied
-			break;
-		give j register
-		remove j from in_need
+}
 
 Файловая организация
 ====================

@@ -18,7 +18,7 @@ static const struct {
 } command_patterns[] = {
 	[cmd_copy]	=	{ 'i',	{ "n", "i", NULL } },
 	[cmd_add]	=	{ 'i',	{ "ii", NULL } },
-	[cmd_ret]	=	{ 0,	{ "", "i", NULL } }
+	[cmd_ret]	=	{ 'v',	{ "", "i", NULL } }
 };
 
 static const char *func_arg_dup = "function argument duplicate";
@@ -332,10 +332,11 @@ static void type_validity_check(struct cmd_list *l)
 
 static void tv_check_args(struct command *c)
 {
+	char *pat = GET_ARGPAT(c);
 	char **tmp = command_patterns[c->type].args;
 	int i;
 	for (i = 0; tmp[i]; ++i) {
-		if (strcmp(*tmp, GET_ARGPAT(c)) == 0)
+		if (strcmp(tmp[i], pat) == 0)
 			return;
 	}
 	if (!tmp[i]) {
@@ -347,10 +348,10 @@ static void tv_check_args(struct command *c)
 static void tv_check_ret(int ctype, struct coord *pos, char rtype)
 {
 	char ret = command_patterns[ctype].rt;
-	if (ret == 'i' && rtype == 0)
+	if (ret == 'i' && rtype == 'v')
 		warn("%d,%d: %s - return value ignored\n", pos->row, pos->col,
 				LNAME(ctype + 1000, 0, NULL));
-	if (ret == 0 && rtype == 'i')
+	if (ret == 'v' && rtype == 'i')
 		die("%d,%d: %s - void assignment\n", pos->row, pos->col,
 				LNAME(ctype + 1000, 0, NULL));
 }

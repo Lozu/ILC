@@ -14,12 +14,11 @@ static int process_entry(FILE *res, struct lexem_list *l);
 
 void process(struct settings *sts)
 {
-	FILE *res;
 	struct lexem_list *llist = lexem_parse(sts->input_file);
-	res = fopen(sts->output_file, "w");
-	if (res == NULL)
+	output_file = fopen(sts->output_file, "w");
+	if (output_file == NULL)
 		die("%s: %s\n", sts->output_file, strerror(errno));
-	while (process_entry(res, llist));
+	while (process_entry(output_file, llist));
 }
 
 static void process_function(struct lexem_list *l, FILE *res);
