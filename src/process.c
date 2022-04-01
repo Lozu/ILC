@@ -8,6 +8,7 @@
 #include "remap.h"
 #include "func.h"
 #include "alloc.h"
+#include "emit.h"
 #include "process.h"
 
 static int process_entry(FILE *res, struct lexem_list *l);
@@ -45,12 +46,12 @@ static int process_entry(FILE *res, struct lexem_list *l)
 static void process_function(struct lexem_list *l, FILE *res)
 {
 	struct function f;
-	struct alloc alloc_table;
 	struct lexem_list *funcl = ll_extract_upto_lt(l, lx_close_brace);
 	struct lexem_list *rnml = remap(funcl, &f.stb);
 
 	func_header_form(rnml, &f);
 	cmd_form(rnml, &f);
 
-	allocate(&f, &alloc_table);
+	f.alloc_table = allocate(&f);
+	asm_emit(&f);
 }

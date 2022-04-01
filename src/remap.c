@@ -94,14 +94,14 @@ static void debug_function_remapped(struct lexem_list *l,
 		struct tbl_entry *array, int len)
 {
 	int i;
-	if (debug[dbg_function_remapped] == 0)
+	if (dbg_function_remapped == 0)
 		return;
-	fprintf(stderr, "---Function remapped---\n");
+	eprintf("---Function remapped---\n");
 	ll_print(stderr, l);
-	fprintf(stderr, "Variables:\n");
+	eprintf("Variables:\n");
 	for (i = 0; i < len; ++i)
-		fprintf(stderr, "\t%d: \'%s\'\n", i, array[i].name);
-	fprintf(stderr, "\n");
+		eprintf("\t%d: \'%s\'\n", i, array[i].name);
+	eprintf("\n");
 }
 
 static struct node *getnode(struct str_tree *t);

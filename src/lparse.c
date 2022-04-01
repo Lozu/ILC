@@ -244,11 +244,11 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt)
 
 static void debug_global_lexem_parse(struct lexem_list *l)
 {
-	if (debug[dbg_global_lexem_parse] == 0)
+	if (dbg_global_lexem_parse == 0)
 		return;
-	fprintf(stderr, "---Global lexem parse---\n");
+	eprintf("---Global lexem parse---\n");
 	ll_print(stderr, l);
-	fprintf(stderr, "\n");
+	eprintf("\n");
 }
 
 struct lexem_list *ll_init()
@@ -296,9 +296,9 @@ int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 {
 	int i;
 	if (ll_get(l, b) == 0) {
-		fprintf(stderr, "expected ");
+		eprintf("expected ");
 		lexem_types_print(stderr, ltvec, ltvec_len);
-		fprintf(stderr, ", not eof\n");
+		eprintf(", not eof\n");
 	}
 	for (i = 0; i < ltvec_len; ++i) {
 		if (ltvec[i] >= 1000000) {
@@ -308,10 +308,10 @@ int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 			return i;
 		}
 	}
-	fprintf(stderr, "%d,%d: expected ", b->crd.row, b->crd.col);
+	eprintf("%d,%d: expected ", b->crd.row, b->crd.col);
 	lexem_types_print(stderr, ltvec, ltvec_len);
-	fprintf(stderr, ", not ");
-	fprintf(stderr, "%s\n", LNAME(b->lt, 0, NULL));
+	eprintf(", not ");
+	eprintf("%s\n", LNAME(b->lt, 0, NULL));
 	exit(1);
 	return -1;
 }

@@ -1,6 +1,7 @@
 #ifndef LPARSE_H
 #define LPARSE_H
 
+#include <stdio.h>
 #include <alloca.h>
 
 enum lexem_type {

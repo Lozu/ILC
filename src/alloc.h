@@ -20,6 +20,8 @@ enum {
 	registers_number = 3
 };
 
+extern const char *reg_names[];
+
 enum alloc_type {
 	at_mem,
 	at_reg
@@ -44,9 +46,10 @@ struct var_state {
 
 struct alloc {
 	struct var_state *vec;
+	int st_offset;
 	int len;
 };
 
-void allocate(struct function *f, struct alloc *ac);
+struct alloc *allocate(struct function *f);
 
 #endif

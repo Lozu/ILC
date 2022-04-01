@@ -5,19 +5,20 @@
 
 #include "global.h"
 
-char debug[] = {
-	[dbg_settings] = 1,
-	[dbg_global_lexem_parse] = 1,
-	[dbg_function_header] = 1,
-	[dbg_function_remapped] = 1,
-	[dbg_commands] = 1,
-	[dbg_lifespan] = 1,
-	[dbg_allocation] = 1
-};
+char dbg_settings = 1;
+char dbg_global_lexem_parse = 1;
+char dbg_function_header = 1;
+char dbg_function_remapped = 1;
+char dbg_commands = 1;
+char dbg_lifespan = 1;
+char dbg_allocation = 1;
+char dbg_emit_borders = 1;
 
 static const char *error_prefix = "error";
 static const char *warn_prefix = "warning";
 static const char *malloc_failed = "malloc failure";
+
+const char *lbl_func_end = ".end";
 
 FILE *output_file = NULL;
 
@@ -28,7 +29,7 @@ static void inform(int mode, char *fmt, va_list vl)
 		prx = error_prefix;
 	else
 		prx = warn_prefix;
-	fprintf(stderr, "%s:", prx);
+	eprintf("%s:", prx);
 	vfprintf(stderr, fmt, vl);
 	if (mode == 1)
 		exit(1);

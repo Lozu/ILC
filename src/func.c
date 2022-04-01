@@ -75,7 +75,7 @@ static void fdecl_eat_args(struct lexem_list *l, struct function *f)
 		die("%s:[%d, %d]: %s\n", f->name, f->pos.row, f->pos.col,
 				func_too_many_args);
 	}
-	f->arg_number = arg_number;
+	f->argnum = arg_number;
 }
 
 static int fdecl_eat_arg(struct lexem_list *l, int anum, struct function *f)
@@ -97,10 +97,10 @@ static int fdecl_eat_arg(struct lexem_list *l, int anum, struct function *f)
 
 static void debug_function_header(struct function *f)
 {
-	if (debug[dbg_function_header] == 0)
+	if (dbg_function_header == 0)
 		return;
-	fprintf(stderr, "---Function: \'%s\' [%d]---\n\n",
-			f->name, f->arg_number);
+	eprintf("---Function: \'%s\' [%d]---\n\n",
+			f->name, f->argnum);
 }
 
 static void cmd_primal_form(struct lexem_list *l, struct function *f);
@@ -111,7 +111,7 @@ static void type_validity_check(struct cmd_list *l);
 void cmd_form(struct lexem_list *l, struct function *f)
 {
 	cmd_primal_form(l, f);
-	availability_check(f->arg_number, f->cl, f->stb.var_arr_len);
+	availability_check(f->argnum, f->cl, f->stb.var_arr_len);
 	type_validity_check(f->cl);
 }
 
@@ -178,7 +178,7 @@ static void cmd_eat_args(struct lexem_list *l, struct command *c)
 
 	c->args = smalloc(argbuf_pos * sizeof(struct cmd_unit));
 	memcpy(c->args, argbuf, argbuf_pos * sizeof(struct cmd_unit));
-	c->arg_number = argbuf_pos;
+	c->argnum = argbuf_pos;
 }
 
 static long long convert_number(char *s, struct coord *pos);
@@ -226,7 +226,7 @@ static long long convert_number(char *s, struct coord *pos)
 static char *get_argpat(char *buf, struct command *c)
 {
 	int i;
-	for (i = 0; i < c->arg_number; ++i)
+	for (i = 0; i < c->argnum; ++i)
 		buf[i] = c->args[i].type;
 	buf[i] = 0;
 	return buf;
@@ -241,40 +241,40 @@ static void debug_print_arg(struct cmd_unit *u, int last);
 static void debug_commands(struct cmd_list *l)
 {
 	struct cmd_list_el *tmp;
-	if (debug[dbg_commands] == 0)
+	if (dbg_commands == 0)
 		return;
-	fprintf(stderr, "---Commands---\n");
+	eprintf("---Commands---\n");
 	for (tmp = l->first; tmp; tmp = tmp->next) {
 		int i;
 		if (tmp->cmd.ret_var.type == 'i')
-			fprintf(stderr, "  [%lld]\t", tmp->cmd.ret_var.id);
+			eprintf("  [%lld]\t", tmp->cmd.ret_var.id);
 		else
-			fprintf(stderr, "  \t");
+			eprintf("  \t");
 
-		fprintf(stderr, "%s(%c:%s):\t",
+		eprintf("%s(%c:%s):\t",
 				LNAME(tmp->cmd.type + 1000, 1, NULL), tmp->cmd.ret_var.type,
 				GET_ARGPAT(&tmp->cmd));
 
-		for (i = 0; i < tmp->cmd.arg_number; ++i) {
+		for (i = 0; i < tmp->cmd.argnum; ++i) {
 			debug_print_arg(tmp->cmd.args + i,
-					i + 1 == tmp->cmd.arg_number);
+					i + 1 == tmp->cmd.argnum);
 		}
-		fprintf(stderr, "\n");
+		eprintf("\n");
 	}
-	fprintf(stderr, "\n");
+	eprintf("\n");
 }
 
 static void debug_print_arg(struct cmd_unit *u, int last)
 {
 	switch(u->type) {
 	case 'n':
-		fprintf(stderr, "%lld", u->id);
+		eprintf("%lld", u->id);
 		break;
 	case 'i':
-		fprintf(stderr, "[%lld]", u->id);
+		eprintf("[%lld]", u->id);
 		break;
 	}
-	fprintf(stderr, !last ?  ", " : "");
+	eprintf(!last ?  ", " : "");
 }
 
 struct acheck_tbl {
@@ -296,7 +296,7 @@ static void availability_check(int func_args, struct cmd_list *l,
 	memset(table.tbl + func_args, 0, var_number - func_args);
 
 	for (tmp = l->first; tmp; tmp = tmp->next) {
-		acheck_args(&table, tmp->cmd.args, tmp->cmd.arg_number);
+		acheck_args(&table, tmp->cmd.args, tmp->cmd.argnum);
 		if (tmp->cmd.ret_var.type == 'i')
 			acheck_inc_res(&table, &tmp->cmd.ret_var);
 	}

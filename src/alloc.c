@@ -53,27 +53,23 @@ static void debug_lifespan(struct lifes *ls, struct sym_tbl *tb);
 static int cmp_for_bystart_smaller(struct lifespan *a, struct lifespan *b);
 static int cmp_for_byend_smaller(struct lifespan *a, struct  lifespan *b);
 static void heapsort(struct lifes *l, cmpfunc f);
-static void real_alloc(struct alloc *a,
-		struct lifes *bystart, struct lifes *byend);
+static void real_alloc(struct alloc *a, struct lifes *l);
 static void debug_allocation(struct alloc *a, struct sym_tbl *tb);
 
-void allocate(struct function *f, struct alloc *ac)
+struct alloc *allocate(struct function *f)
 {
-	struct lifes bystart;
-	struct lifes byend;
+	struct alloc *ac = smalloc(sizeof(struct alloc));
+	struct lifes l;
 
 	alloc_init(ac, f->stb.var_arr_len);
+	lifes_fill(&l, f->stb.var_arr_len);
 
-	lifes_fill(&bystart, f->stb.var_arr_len);
-	calc_lifespan(f->cl, f->arg_number, f->stb.var_arr_len, &bystart);
-	debug_lifespan(&bystart, &f->stb);
-	lifes_copy(&byend, &bystart);
+	calc_lifespan(f->cl, f->argnum, f->stb.var_arr_len, &l);
+	debug_lifespan(&l, &f->stb);
 
-	heapsort(&bystart, cmp_for_bystart_smaller);
-	heapsort(&byend, cmp_for_byend_smaller);
-
-	real_alloc(ac, &bystart, &byend);
+	real_alloc(ac, &l);
 	debug_allocation(ac, &f->stb);
+	return ac;
 }
 
 void alloc_init(struct alloc *a, int num)
@@ -81,6 +77,7 @@ void alloc_init(struct alloc *a, int num)
 	int i;
 	a->vec = smalloc(num * sizeof(struct var_state));
 	a->len = num;
+	a->st_offset = 0;
 	for (i = 0; i < num; ++i) {
 		a->vec[i].curr = a->vec[i].last = NULL;
 	}
@@ -114,7 +111,7 @@ static void calc_lifespan(struct cmd_list *cl, int fargs, int num,
 	i = 1;
 
 	for (tmp = cl->first; tmp; tmp = tmp->next, ++i) {
-		process_args(ls, i, tmp->cmd.args, tmp->cmd.arg_number);
+		process_args(ls, i, tmp->cmd.args, tmp->cmd.argnum);
 		if (tmp->cmd.ret_var.type == 'i')
 			process_ret(ls, i, &tmp->cmd.ret_var);
 	}
@@ -156,14 +153,14 @@ static void lifes_copy(struct lifes *dest, struct lifes *src)
 static void debug_lifespan(struct lifes *ls, struct sym_tbl *tb)
 {
 	int i;
-	if (debug[dbg_lifespan] == 0)
+	if (dbg_lifespan == 0)
 		return;
-	fprintf(stderr, "---Lifespan---\n");
+	eprintf("---Lifespan---\n");
 	for (i = 0; i < ls->len; ++i) {
-		fprintf(stderr, "\t\'%s\': %d - %d\n", tb->var_array[i].name,
+		eprintf("\t\'%s\': %d - %d\n", tb->var_array[i].name,
 				ls->vec[i].start, ls->vec[i].end);
 	}
-	fprintf(stderr, "\n");
+	eprintf("\n");
 }
 
 static int cmp_for_bystart_smaller(struct lifespan *a, struct lifespan *b)
@@ -221,9 +218,9 @@ static void heapsort(struct lifes *l, cmpfunc f)
 static void dbg_int_heapsort(struct lifespan *l, int len)
 {
 	int i;
-	fprintf(stderr, "---Heapsort---\n");
+	eprintf("---Heapsort---\n");
 	for (i = 0; i < len; ++i)
-		fprintf(stderr, "\t%d: %d, %d\n", l[i].id, l[i].start, l[i].end);
+		eprintf("\t%d: %d, %d\n", l[i].id, l[i].start, l[i].end);
 }
 
 struct register_stack {
@@ -232,7 +229,8 @@ struct register_stack {
 };
 
 struct deprived_unit {
-	struct lifespan *ls;
+	int id;
+	int end;
 	struct deprived_unit *prev;
 	struct deprived_unit *next;
 };
@@ -246,8 +244,8 @@ static struct register_stack *register_stack_init();
 static struct register_stack *rstack_add(struct register_stack *s, int reg);
 int rstack_get(struct register_stack **s);
 
-void alloc_ins_var_state(struct alloc *a, int var,
-		enum alloc_type at, int value, int start, int end);
+void alloc_ins_var_state(struct alloc *a, enum alloc_type at, int value,
+		int var, int start, int end);
 
 static int deprd_fget(struct deprived_deque *d);
 static int deprd_bget(struct deprived_deque *d);
@@ -256,36 +254,42 @@ static void deprd_ins(struct deprived_deque *d, struct lifespan *l);
 static const ulonglong bystart_mark = 1ULL << 63;
 static const ulonglong byend_mark = 1ULL << 62;
 
-static void resolve_args(struct alloc *a, struct register_stack **rs,
-		struct lifes *l, struct deprived_deque *d);
+static int resolve_args(struct alloc *a, struct register_stack **rs,
+		struct lifes *tbl, struct deprived_deque *d);
 static ulonglong getpos(struct lifes *bystart, struct lifes *byend);
 static void discard_inneed_dead(struct deprived_deque *dq, int start);
 static void	discard_dead(struct lifes *l, int start,
 		struct alloc *a, struct register_stack **rs);
-static int alloc_var(struct lifes *l, struct alloc *a, int offset,
+static void alloc_var(struct lifes *l, struct alloc *a, int *offset,
 		struct register_stack **rs, struct deprived_deque *d, int start);
 static void give_to_in_need(struct deprived_deque *d, int start,
 		struct register_stack **rs, struct alloc *a, struct lifes *tbl);
 
-static void real_alloc(struct alloc *a, struct lifes *bystart,
-		struct lifes *byend)
+static void real_alloc(struct alloc *a, struct lifes *l)
 {
 	struct register_stack *rs = register_stack_init();
-	int st_offset = 0;
 	ulonglong pos;
 	struct deprived_deque dq = { NULL, NULL };
+	struct lifes bystart;
+	struct lifes byend;
 
-	resolve_args(a, &rs, bystart, &dq);
-	while ((pos = getpos(bystart, byend)) != LLONG_MAX) {
+	lifes_copy(&bystart, l);
+	lifes_copy(&byend, l);
+	heapsort(&bystart, cmp_for_bystart_smaller);
+	heapsort(&byend, cmp_for_byend_smaller);
+
+	bystart.pos = resolve_args(a, &rs, l, &dq);
+
+	while ((pos = getpos(&bystart, &byend)) != LLONG_MAX) {
 		discard_inneed_dead(&dq, pos);
 
 		if (pos & byend_mark)
-			discard_dead(byend, pos, a, &rs);
+			discard_dead(&byend, pos, a, &rs);
 
 		if (pos & bystart_mark)
-			st_offset = alloc_var(bystart, a, st_offset, &rs, &dq, pos);
+			alloc_var(&bystart, a, &a->st_offset, &rs, &dq, pos);
 
-		give_to_in_need(&dq, pos, &rs, a, bystart);
+		give_to_in_need(&dq, pos, &rs, a, l);
 	}
 }
 
@@ -300,7 +304,9 @@ static ulonglong getpos(struct lifes *bystart, struct lifes *byend)
 		mask |= 1;
 	}
 	if (byend->pos < byend->len &&
-			byend->vec[byend->pos].end + 1 < min) {
+			byend->vec[byend->pos].end + 1 < min &&
+			byend->vec[byend->pos].end != byend->vec[byend->len-1].end
+			) {
 		min = byend->vec[byend->pos].end + 1;
 		mask |= 2;
 	}
@@ -311,29 +317,27 @@ static ulonglong getpos(struct lifes *bystart, struct lifes *byend)
 	return min;
 }
 
-static void resolve_args(struct alloc *a, struct register_stack **rs,
-		struct lifes *l, struct deprived_deque *d)
+static int resolve_args(struct alloc *a, struct register_stack **rs,
+		struct lifes *tbl, struct deprived_deque *d)
 {
 	int offset = 8;
 	int i;
-	for (; l->pos < l->len && l->vec[l->pos].start == 0; ++l->pos);
-
-	for (i = 0; i < l->pos; ++i) {
+	for (i = 0; i < tbl->len && tbl->vec[i].start == 0; ++i) {
 		int reg;
 		if (i < 6 && (reg = rstack_get(rs)) != -1) {
-			alloc_ins_var_state(a, i, at_reg,
-					reg, 0, l->vec[i].end);
+			alloc_ins_var_state(a, at_reg, reg, i, 0, tbl->vec[i].end);
 		} else {
-			alloc_ins_var_state(a, i, at_mem,
-					offset += 8, 0, l->vec[i].end);
-			deprd_ins(d, l->vec + l->pos);
+			alloc_ins_var_state(a, at_mem, offset += 8, i, 0,
+					tbl->vec[i].end);
+			deprd_ins(d, tbl->vec + i);
 		}
 	}
+	return i;
 }
 
 static void discard_inneed_dead(struct deprived_deque *dq, int start)
 {
-	while (dq->first && dq->first->ls->end < start)
+	while (dq->first && dq->first->end < start)
 		deprd_fget(dq);
 }
 
@@ -348,36 +352,36 @@ static void	discard_dead(struct lifes *l, int start,
 }
 
 
-static int alloc_var(struct lifes *l, struct alloc *a, int offset,
+static void alloc_var(struct lifes *l, struct alloc *a, int *offset,
 		struct register_stack **rs, struct deprived_deque *d, int start)
 {
 	for (; l->pos < l->len && l->vec[l->pos].start == start; ++l->pos) {
 		struct lifespan *tmp = l->vec + l->pos;
 		int reg = rstack_get(rs);
 		if (reg != -1) {
-			alloc_ins_var_state(a, tmp->id, at_reg, reg, start, tmp->end);
+			alloc_ins_var_state(a, at_reg, reg, tmp->id, start, tmp->end);
 		} else {
-			alloc_ins_var_state(a, tmp->id, at_mem, offset -= 8, start,
+			alloc_ins_var_state(a, at_mem, *offset -= 8, tmp->id, start,
 					tmp->end);
 			deprd_ins(d, tmp);
 		}
 	}
-	return offset;
 }
 
 static void give_to_in_need(struct deprived_deque *d, int start,
 		struct register_stack **rs, struct alloc *a, struct lifes *tbl)
 {
-	int reg = rstack_get(rs);
+	int reg;
 	int id;
-	if (reg == -1)
+
+	if (d->first == NULL || *rs == NULL)
 		return;
+
 	id = deprd_bget(d);
-	if (id == -1)
-		return;
+	reg = rstack_get(rs);
+
 	a->vec[id].curr->end = start - 1;
-	alloc_ins_var_state(a, id, at_reg, reg,
-			start, tbl->vec[id].end);
+	alloc_ins_var_state(a, at_reg, reg, id, start, tbl->vec[id].end);
 	give_to_in_need(d, start, rs, a, tbl);
 }
 
@@ -414,8 +418,8 @@ int rstack_get(struct register_stack **s)
 	return res;
 }
 
-void alloc_ins_var_state(struct alloc *a, int var,
-		enum alloc_type at, int value, int start, int end)
+void alloc_ins_var_state(struct alloc *a, enum alloc_type at, int value,
+		int var, int start, int end)
 {
 	struct var_state *vs = a->vec + var;
 	struct alloc_phase *tmp = smalloc(sizeof(struct alloc_phase));
@@ -444,7 +448,7 @@ static int deprd_fget(struct deprived_deque *d)
 		d->last = NULL;
 	tmp = d->first;
 	d->first = tmp->next;
-	res = tmp->ls->id;
+	res = tmp->id;
 	if (d->first)
 		d->first->prev = NULL;
 	free(tmp);
@@ -461,7 +465,7 @@ static int deprd_bget(struct deprived_deque *d)
 		d->first = NULL;
 	tmp = d->last;
 	d->last = d->last->prev;
-	res = tmp->ls->id;
+	res = tmp->id;
 	if (d->last)
 		d->last->next = NULL;
 	free(tmp);
@@ -472,20 +476,27 @@ static void deprd_ins(struct deprived_deque *d, struct lifespan *l)
 {
 	struct deprived_unit *tmp = d->last;
 	struct deprived_unit *tmp2 = smalloc(sizeof(struct deprived_unit));
-	tmp2->ls = l;
+	tmp2->id = l->id;
+	tmp2->end = l->end;
 
-	for (; tmp && tmp->ls->end > l->end; tmp = tmp->prev);
+	for (; tmp && tmp->end > tmp2->end; tmp = tmp->prev);
 
 	if (tmp == NULL) {
-		d->first = d->last = tmp2;
-		d->first->prev = d->first->next = NULL;
+		if (d->first == NULL) {
+			d->first = d->last = tmp2;
+			d->first->prev = d->first->next = NULL;
+		} else {
+			d->first->prev = tmp2;
+			tmp2->next = d->first;
+			d->first = tmp2;
+		}
 	} else {
 		tmp2->prev = tmp;
 		if (tmp->next == NULL)
 			d->last = tmp2;
 		else
 			tmp->next->prev = tmp2;
-		tmp2->next = tmp2->next;
+		tmp2->next = tmp->next;
 		tmp->next = tmp2;
 	}
 }
@@ -495,26 +506,26 @@ static void print_alloc_phases(char *var, struct alloc_phase *vp);
 static void debug_allocation(struct alloc *a, struct sym_tbl *tb)
 {
 	int i;
-	if (debug[dbg_allocation] == 0)
+	if (dbg_allocation == 0)
 		return;
-	fprintf(stderr, "---Allocation---\n");
+	eprintf("---Allocation---\n");
 	for (i = 0; i < a->len; ++i) {
 		if (a->vec[i].curr == NULL)
 			continue;
 		print_alloc_phases(tb->var_array[i].name, a->vec[i].curr);
 	}
-	fprintf(stderr, "\n");
+	eprintf("\n");
 }
 
 static void print_alloc_phases(char *var, struct alloc_phase *vp)
 {
-	fprintf(stderr, "\t");
+	eprintf("\t");
 	for (; vp; vp = vp->next) {
 		if (vp->type == at_reg) {
-			fprintf(stderr, "[\'%s\': (%s) %d - %d]", var,
+			eprintf("[\'%s\': (%s) %d - %d]", var,
 					reg_names[vp->reg], vp->start, vp->end);
 		} else {
-			fprintf(stderr, "[\'%s\': (%+d) %d - %d]", var,
+			eprintf("[\'%s\': (%+d) %d - %d]", var,
 					vp->offset, vp->start, vp->end);
 		}
 		eprintf(vp->next ? " -> " : "\n");

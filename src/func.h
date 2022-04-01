@@ -27,7 +27,7 @@ struct command {
 	struct cmd_unit ret_var;
 
 	struct cmd_unit *args;
-	int arg_number;
+	int argnum;
 };
 
 struct cmd_list_el {
@@ -45,9 +45,10 @@ struct function {
 	struct coord pos;
 
 	char type;
-	int arg_number;
+	int argnum;
 	struct sym_tbl stb;
 	struct cmd_list *cl;
+	struct alloc *alloc_table;
 };
 
 void func_header_form(struct lexem_list *l, struct function *f);
