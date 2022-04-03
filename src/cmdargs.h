@@ -6,6 +6,6 @@ struct settings {
 	char *output_file;
 };
 
-struct settings * cmdargs_handle(int argc, char **argv);
+void cmdargs_handle(int argc, char **argv, struct settings *s);
 
 #endif

@@ -50,6 +50,9 @@ struct alloc {
 	int len;
 };
 
+struct function;
+
 struct alloc *allocate(struct function *f);
+void alloc_free(struct alloc *a);
 
 #endif

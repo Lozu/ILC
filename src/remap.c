@@ -46,6 +46,9 @@ struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
 	}
 	var_table_fill(tb, var_tree);
 	debug_function_remapped(res, tb->var_array, tb->var_arr_len);
+
+	free(l);
+	free(var_tree);
 	return res;
 }
 
@@ -104,6 +107,14 @@ static void debug_function_remapped(struct lexem_list *l,
 	eprintf("\n");
 }
 
+void sym_tbl_free(struct sym_tbl *s)
+{
+	int i;
+	for (i = 0; i < s->var_arr_len; ++i)
+		free(s->var_array[i].name);
+	free(s->var_array);
+}
+
 static struct node *getnode(struct str_tree *t);
 
 static struct str_tree *t_init()
@@ -132,15 +143,17 @@ static int add_unique(struct str_tree *t, char *s)
 	int last = -1;
 	struct node *y = t->null;
 	struct node *x = t->root;
-	struct node *z = getnode(t);
+	struct node *z;
 
 	while (x != t->null) {
 		int val;
 		y = x;
 		val = strcmp(y->key, s);
 
-		if (val == 0)
+		if (val == 0) {
+			free(s);
 			return y->value;
+		}
 		if (val > 0) {
 			x = x->left;
 			last = 0;
@@ -149,6 +162,7 @@ static int add_unique(struct str_tree *t, char *s)
 			last = 1;
 		}
 	}
+	z = getnode(t);
 	z->p = y;
 	if (y == t->null)
 		t->root = z;

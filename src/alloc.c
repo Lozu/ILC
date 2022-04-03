@@ -46,6 +46,7 @@ typedef int(*cmpfunc)(struct lifespan *a, struct lifespan *b);
 
 static void alloc_init(struct alloc *a, int num);
 static void lifes_fill(struct lifes *ls, int num);
+static void lifes_free(struct lifes *l);
 static void calc_lifespan(struct cmd_list *cl, int fargs, int num,
 		struct lifes *ls);
 static void lifes_copy(struct lifes *dest, struct lifes *src);
@@ -68,6 +69,7 @@ struct alloc *allocate(struct function *f)
 	debug_lifespan(&l, &f->stb);
 
 	real_alloc(ac, &l);
+	lifes_free(&l);
 	debug_allocation(ac, &f->stb);
 	return ac;
 }
@@ -83,6 +85,15 @@ void alloc_init(struct alloc *a, int num)
 	}
 }
 
+void alloc_free(struct alloc *a)
+{
+	int i;
+	for (i = 0; i < a->len; ++i)
+			free(a->vec[i].curr);
+	free(a->vec);
+	free(a);
+}
+
 static void lifes_fill(struct lifes *ls, int num)
 {
 	int i;
@@ -93,6 +104,11 @@ static void lifes_fill(struct lifes *ls, int num)
 		ls->vec[i].id = i;
 		ls->vec[i].end = ls->vec[i].start = UINT_MAX;
 	}
+}
+
+static void lifes_free(struct lifes *l)
+{
+	free(l->vec);
 }
 
 static void process_args(struct lifes *ls, int pos,
@@ -241,6 +257,7 @@ struct deprived_deque {
 };
 
 static struct register_stack *register_stack_init();
+static void register_stack_free(struct register_stack *rs);
 static struct register_stack *rstack_add(struct register_stack *s, int reg);
 int rstack_get(struct register_stack **s);
 
@@ -250,6 +267,7 @@ void alloc_ins_var_state(struct alloc *a, enum alloc_type at, int value,
 static int deprd_fget(struct deprived_deque *d);
 static int deprd_bget(struct deprived_deque *d);
 static void deprd_ins(struct deprived_deque *d, struct lifespan *l);
+static void deprd_free(struct deprived_deque *d);
 
 static const ulonglong bystart_mark = 1ULL << 63;
 static const ulonglong byend_mark = 1ULL << 62;
@@ -291,6 +309,10 @@ static void real_alloc(struct alloc *a, struct lifes *l)
 
 		give_to_in_need(&dq, pos, &rs, a, l);
 	}
+	lifes_free(&bystart);
+	lifes_free(&byend);
+	register_stack_free(rs);
+	deprd_free(&dq);
 }
 
 static ulonglong getpos(struct lifes *bystart, struct lifes *byend)
@@ -304,7 +326,7 @@ static ulonglong getpos(struct lifes *bystart, struct lifes *byend)
 		mask |= 1;
 	}
 	if (byend->pos < byend->len &&
-			byend->vec[byend->pos].end + 1 < min &&
+			byend->vec[byend->pos].end < min &&
 			byend->vec[byend->pos].end != byend->vec[byend->len-1].end
 			) {
 		min = byend->vec[byend->pos].end + 1;
@@ -398,6 +420,14 @@ static struct register_stack *register_stack_init()
 	return tmp;
 }
 
+static void register_stack_free(struct register_stack *rs)
+{
+	while (rs) {
+		struct register_stack *tmp = rs;
+		rs = rs->next;
+		free(tmp);
+	}
+}
 static struct register_stack *rstack_add(struct register_stack *s, int reg)
 {
 	struct register_stack *tmp = smalloc(sizeof(struct register_stack));
@@ -498,6 +528,16 @@ static void deprd_ins(struct deprived_deque *d, struct lifespan *l)
 			tmp->next->prev = tmp2;
 		tmp2->next = tmp->next;
 		tmp->next = tmp2;
+	}
+}
+
+static void deprd_free(struct deprived_deque *d)
+{
+	struct deprived_unit *tmp;
+	while (d->first) {
+		tmp = d->first;
+		d->first = tmp->next;
+		free(tmp);
 	}
 }
 

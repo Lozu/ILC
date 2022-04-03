@@ -7,6 +7,7 @@
 
 #include "global.h"
 #include "lparse.h"
+#include "alloc.h"
 #include "func.h"
 
 #include "lparse.h"
@@ -176,9 +177,11 @@ static void cmd_eat_args(struct lexem_list *l, struct command *c)
 	if (argbuf_pos == func_max_args)
 		die("%d: %s\n", c->pos.row, msg_too_many_args);
 
-	c->args = smalloc(argbuf_pos * sizeof(struct cmd_unit));
-	memcpy(c->args, argbuf, argbuf_pos * sizeof(struct cmd_unit));
 	c->argnum = argbuf_pos;
+	if (argbuf_pos > 0) {
+		c->args = smalloc(argbuf_pos * sizeof(struct cmd_unit));
+		memcpy(c->args, argbuf, argbuf_pos * sizeof(struct cmd_unit));
+	}
 }
 
 static long long convert_number(char *s, struct coord *pos);
@@ -196,6 +199,7 @@ static int cmd_eat_arg(struct lexem_list *l, struct cmd_unit *arg, int *pos)
 	case 1:
 		arg->type = 'n';
 		arg->id = convert_number(b.dt.str_value, &b.crd);
+		free(b.dt.str_value);
 		break;
 	case 2:
 		if (*pos == 0)
@@ -354,6 +358,20 @@ static void tv_check_ret(int ctype, struct coord *pos, char rtype)
 	if (ret == 'v' && rtype == 'i')
 		die("%d,%d: %s - void assignment\n", pos->row, pos->col,
 				LNAME(ctype + 1000, 0, NULL));
+}
+
+void cmd_list_free(struct cmd_list *l)
+{
+	struct cmd_list_el *tmp;
+	while (l->first) {
+		tmp = l->first;
+		l->first = tmp->next;
+
+		if (tmp->cmd.argnum > 0)
+			free(tmp->cmd.args);
+		free(tmp);
+	}
+	free(l);
 }
 
 struct cmd_list *cmd_list_init()

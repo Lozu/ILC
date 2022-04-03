@@ -27,10 +27,9 @@ static void settings_check(struct settings *s);
 static void settings_complete(struct settings *sts);
 static void debug_settings_print(struct settings *sts);
 
-struct settings *cmdargs_handle(int argc, char **argv)
+void cmdargs_handle(int argc, char **argv, struct settings *s)
 {
-	struct settings *sts = smalloc(sizeof(struct settings));
-	memset(sts, 0, sizeof(struct settings));
+	s->output_file = NULL;
 
 	if (argc == 1 || (argc == 2 && strcmp(argv[1], flag_help) == 0)) {
 		printf(msg_help, argv[0]);
@@ -41,20 +40,19 @@ struct settings *cmdargs_handle(int argc, char **argv)
 			if (argv[1] == NULL)
 				die("%s: %s\n", flag_ofile, msg_no_ofile);
 			++argv;
-			sts->output_file = *argv;
+			s->output_file = *argv;
 		} else {
 			break;
 		}
 	}
 	if (*argv == NULL)
 		die("%s\n", msg_no_ifile);
-	sts->input_file = *argv;
+	s->input_file = *argv;
 	if (argv[1] != NULL)
 		die("%s: %s\n", argv[1], msg_dup_ifile);
-	settings_check(sts);
-	settings_complete(sts);
-	debug_settings_print(sts);
-	return sts;
+	settings_check(s);
+	settings_complete(s);
+	debug_settings_print(s);
 }
 
 static void settings_check(struct settings *s)
@@ -89,7 +87,7 @@ static void settings_complete(struct settings *sts)
 
 	pos = ends_with(buffer, ifile_sfx);
 	strcpy(buffer + pos, ofile_sfx);
-	sts->output_file = strdup(buffer);
+	sts->output_file = sstrdup(buffer);
 }
 
 static int ends_with(char *s1, char *s2)

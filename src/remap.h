@@ -13,5 +13,6 @@ struct sym_tbl {
 };
 
 struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb);
+void sym_tbl_free(struct sym_tbl *s);
 
 #endif

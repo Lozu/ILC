@@ -53,5 +53,6 @@ struct function {
 
 void func_header_form(struct lexem_list *l, struct function *f);
 void cmd_form(struct lexem_list *l, struct function *f);
+void cmd_list_free(struct cmd_list *l);
 
 #endif

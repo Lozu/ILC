@@ -286,6 +286,7 @@ int ll_get(struct lexem_list *ll, struct lexem_block *b)
 	b->lt = tmp->lb.lt;
 	b->crd = tmp->lb.crd;
 	b->dt = tmp->lb.dt;
+	free(tmp);
 	return 1;
 }
 

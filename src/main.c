@@ -3,7 +3,8 @@
 
 int main(int argc, char **argv)
 {
-	struct settings *sts = cmdargs_handle(argc, argv);
-	process(sts);
+	struct settings s;
+	cmdargs_handle(argc, argv, &s);
+	process(&s);
 	return 0;
 }

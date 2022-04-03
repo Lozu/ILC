@@ -149,7 +149,7 @@ static void emit_cadd(struct alloc *a, struct command *c)
 
 static void emit_cret(struct alloc *a, struct command *c)
 {
-	if (c->args[0].type == 'i')
+	if (c->argnum == 1)
 		oprintf("\tmov %s, %s\n", reg_names[rax], ARG0_ST);
 	oprintf("\tjmp %s\n", lbl_func_end);
 }

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,6 +21,8 @@ void process(struct settings *sts)
 	if (output_file == NULL)
 		die("%s: %s\n", sts->output_file, strerror(errno));
 	while (process_entry(output_file, llist));
+	free(llist);
+	fclose(output_file);
 }
 
 static void process_function(struct lexem_list *l, FILE *res);
@@ -43,6 +46,8 @@ static int process_entry(FILE *res, struct lexem_list *l)
 	return 1;
 }
 
+static void func_free(struct function *f);
+
 static void process_function(struct lexem_list *l, FILE *res)
 {
 	struct function f;
@@ -54,4 +59,15 @@ static void process_function(struct lexem_list *l, FILE *res)
 
 	f.alloc_table = allocate(&f);
 	asm_emit(&f);
+
+	func_free(&f);
+	free(rnml);
+}
+
+static void func_free(struct function *f)
+{
+	free(f->name);
+	sym_tbl_free(&f->stb);
+	cmd_list_free(f->cl);
+	alloc_free(f->alloc_table);
 }
