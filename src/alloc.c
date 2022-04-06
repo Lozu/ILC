@@ -50,22 +50,22 @@ static void lifes_free(struct lifes *l);
 static void calc_lifespan(struct cmd_list *cl, int fargs, int num,
 		struct lifes *ls);
 static void lifes_copy(struct lifes *dest, struct lifes *src);
-static void debug_lifespan(struct lifes *ls, struct sym_tbl *tb);
+static void debug_lifespan(struct lifes *ls, struct var_sym_tbl *tb);
 static int cmp_for_bystart_smaller(struct lifespan *a, struct lifespan *b);
 static int cmp_for_byend_smaller(struct lifespan *a, struct  lifespan *b);
 static void heapsort(struct lifes *l, cmpfunc f);
 static void real_alloc(struct alloc *a, struct lifes *l);
-static void debug_allocation(struct alloc *a, struct sym_tbl *tb);
+static void debug_allocation(struct alloc *a, struct var_sym_tbl *tb);
 
 struct alloc *allocate(struct function *f)
 {
 	struct alloc *ac = smalloc(sizeof(struct alloc));
 	struct lifes l;
 
-	alloc_init(ac, f->stb.var_arr_len);
-	lifes_fill(&l, f->stb.var_arr_len);
+	alloc_init(ac, f->stb.len);
+	lifes_fill(&l, f->stb.len);
 
-	calc_lifespan(f->cl, f->argnum, f->stb.var_arr_len, &l);
+	calc_lifespan(f->cl, f->argnum, f->stb.len, &l);
 	debug_lifespan(&l, &f->stb);
 
 	real_alloc(ac, &l);
@@ -166,14 +166,14 @@ static void lifes_copy(struct lifes *dest, struct lifes *src)
 		dest->vec[i] = src->vec[i];
 }
 
-static void debug_lifespan(struct lifes *ls, struct sym_tbl *tb)
+static void debug_lifespan(struct lifes *ls, struct var_sym_tbl *tb)
 {
 	int i;
 	if (dbg_lifespan == 0)
 		return;
 	eprintf("---Lifespan---\n");
 	for (i = 0; i < ls->len; ++i) {
-		eprintf("\t\'%s\': %d - %d\n", tb->var_array[i].name,
+		eprintf("\t\'%s\': %d - %d\n", tb->vec[i].name,
 				ls->vec[i].start, ls->vec[i].end);
 	}
 	eprintf("\n");
@@ -543,7 +543,7 @@ static void deprd_free(struct deprived_deque *d)
 
 static void print_alloc_phases(char *var, struct alloc_phase *vp);
 
-static void debug_allocation(struct alloc *a, struct sym_tbl *tb)
+static void debug_allocation(struct alloc *a, struct var_sym_tbl *tb)
 {
 	int i;
 	if (dbg_allocation == 0)
@@ -552,7 +552,7 @@ static void debug_allocation(struct alloc *a, struct sym_tbl *tb)
 	for (i = 0; i < a->len; ++i) {
 		if (a->vec[i].curr == NULL)
 			continue;
-		print_alloc_phases(tb->var_array[i].name, a->vec[i].curr);
+		print_alloc_phases(tb->vec[i].name, a->vec[i].curr);
 	}
 	eprintf("\n");
 }

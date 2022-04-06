@@ -8,10 +8,9 @@
 #include "global.h"
 #include "lparse.h"
 #include "alloc.h"
-#include "func.h"
-
-#include "lparse.h"
+#include "process.h"
 #include "global.h"
+#include "func.h"
 
 static const struct {
 	char rt;
@@ -36,25 +35,26 @@ void cmd_list_add(struct cmd_list *l, struct command *c);
 static void fdecl_eat_args(struct lexem_list *l, struct function *f);
 static void debug_function_header(struct function *f);
 
-void func_header_form(struct lexem_list *l, struct function *f)
+void func_header_form(struct lexem_list *l, struct function *f,
+		struct gn_sym_tbl *tbl)
 {
 	struct lexem_block b;
 	int status;
-	enum lexem_type ltvec1[2] = { lx_int_spec, lx_func_name };
-	enum lexem_type ltvec2[1] =  { lx_func_name };
+	enum lexem_type ltvec1[2] = { lx_int_spec, lx_gn_rmp };
+	enum lexem_type ltvec2[1] =  { lx_gn_rmp };
 	enum lexem_type ltvec3[1] = { lx_parenleft };
 	enum lexem_type ltvec4[1] = { lx_open_brace };
 
-	f->name = NULL;
 	status = lexem_clever_get(l, &b, ltvec1, 2);
 	if (status == 0) {
 		f->type = 'i';
 		lexem_clever_get(l, &b, ltvec2, 1);
-		f->name = b.dt.str_value;
 	} else {
 		f->type = 0;
-		f->name = b.dt.str_value;
 	}
+	f->name = tbl->vec[b.dt.number].name;
+	f->pos = b.crd;
+
 	lexem_clever_get(l, &b, ltvec3, 1);
 	fdecl_eat_args(l, f);
 	lexem_clever_get(l, &b, ltvec4, 1);
@@ -90,7 +90,7 @@ static int fdecl_eat_arg(struct lexem_list *l, int anum, struct function *f)
 		return fdecl_eat_arg(l, anum, f);
 	if (b.dt.number != anum) {
 		die(" function \'%s\': variable \'%s\'[%d,%d]: %s\n", f->name,
-				f->stb.var_array[b.dt.number], b.crd.row, b.crd.col,
+				f->stb.vec[b.dt.number], b.crd.row, b.crd.col,
 				func_arg_dup);
 	}
 	return lexem_clever_get(l, &b, vec2, 2);
@@ -112,7 +112,7 @@ static void type_validity_check(struct cmd_list *l);
 void cmd_form(struct lexem_list *l, struct function *f)
 {
 	cmd_primal_form(l, f);
-	availability_check(f->argnum, f->cl, f->stb.var_arr_len);
+	availability_check(f->argnum, f->cl, f->stb.len);
 	type_validity_check(f->cl);
 }
 

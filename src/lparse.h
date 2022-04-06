@@ -7,9 +7,10 @@
 enum lexem_type {
 	lx_word,
 	lx_number,
-	lx_func_name,
+	lx_global_name,
 	lx_variable,
 	lx_var_remapped,
+	lx_gn_rmp,
 
 	lx_new_line,
 	lx_parenleft,

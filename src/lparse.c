@@ -97,7 +97,7 @@ struct lexem_list *lexem_parse(char *filename)
 	return ll;
 }
 
-static void eat_name(FILE *ifile, char *buffer,
+static void eat_name(FILE *ifile, char *buffer, union lexem_data *dt,
 		struct coord *start, struct position *pos);
 static void eat_variable(FILE *ifile, char *buffer, union lexem_data *dt,
 		struct coord *start, struct position *pos);
@@ -117,7 +117,7 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 		b.lt = lx_new_line;
 	} else if(is_alpha(buffer[0])) {
 		b.lt = lx_word;
-		eat_name(ifile, buffer, &b.crd, pos);
+		eat_name(ifile, buffer, &b.dt, &b.crd, pos);
 	} else if (buffer[0] == '(') {
 		b.lt = lx_parenleft;
 	} else if (buffer[0] == ')') {
@@ -137,7 +137,7 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	} else if (buffer[0] == '=') {
 		b.lt = lx_equal_sign;
 	} else if (buffer[0] == '$') {
-		b.lt = lx_func_name;
+		b.lt = lx_global_name;
 		eat_func_name(ifile, buffer, &b.dt, &b.crd, pos);
 	} else {
 		die("%d,%d: %s\n", pos->cor.row, pos->cor.col, msg_inv_sym);
@@ -147,86 +147,37 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	ll_add(ll, &b);
 }
 
-static void eat_name(FILE *ifile, char *buffer,
-		struct coord *start, struct position *pos)
-{
-	int bufpos = 1;
-	for (;; ++bufpos) {
-		int c = fgetc(ifile);
-		if (!is_alpha(c) && !is_number(c)) {
-			ungetc(c, ifile);
-			break;
-		}
-		if (bufpos + 1 > max_lexem_len) {
-			die(msg_lxm_len_limit, start->row, start->col,
-					max_lexem_len);
-		}
-		pos_next(pos, c);
-		buffer[bufpos] = c;
-	}
-	buffer[bufpos] = 0;
+#define EAT_TMP(func_name, buf_pos, predicate, save_buf, \
+		die_if_none, die_msg) \
+static void func_name(FILE *ifile, char *buffer, union lexem_data *dt, \
+		struct coord *start, struct position *pos) \
+{ \
+	int bufpos = buf_pos; \
+	for (;; ++bufpos) { \
+		int c = fgetc(ifile); \
+		if (!(predicate)) { \
+			ungetc(c, ifile); \
+			break; \
+		} \
+		if (bufpos + 1 > max_lexem_len) \
+			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len); \
+		pos_next(pos, c); \
+		buffer[bufpos] = c; \
+	} \
+	if (die_if_none && bufpos == 0) \
+		die("%d,%d: %s\n", start->row, start->col, die_msg); \
+	buffer[bufpos] = 0; \
+	if (!save_buf) \
+		return; \
+	dt->str_value = sstrdup(buffer); \
 }
 
-static void eat_variable(FILE *ifile, char *buffer, union lexem_data *dt,
-		struct coord *start, struct position *pos)
-{
-	int bufpos = 0;
-	for (;; ++bufpos) {
-		int c = fgetc(ifile);
-		if (!is_alpha(c) && !is_number(c) && c != '_' && c != '.') {
-			ungetc(c, ifile);
-			break;
-		}
-		if (bufpos + 1 > max_lexem_len)
-			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
-		pos_next(pos, c);
-		buffer[bufpos] = c;
-	}
-	if (bufpos == 0)
-		die("%d,%d: %s\n", start->row, start->col, msg_var_zero);
-	buffer[bufpos] = 0;
-	dt->str_value = sstrdup(buffer);
-}
-
-static void eat_number(FILE *ifile, char *buffer, union lexem_data *dt,
-		struct coord *start, struct position *pos)
-{
-	int bufpos = 1;
-	for (;; ++bufpos) {
-		int c = fgetc(ifile);
-		if (!is_number(c)) {
-			ungetc(c, ifile);
-			break;
-		}
-		if (bufpos + 1 > max_lexem_len)
-			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
-		pos_next(pos, c);
-		buffer[bufpos] = c;
-	}
-	buffer[bufpos] = 0;
-	dt->str_value = sstrdup(buffer);
-}
-
-static void eat_func_name(FILE *ifile, char *buffer, union lexem_data *dt,
-		struct coord *start, struct position *pos)
-{
-	int bufpos = 0;
-	for (;; ++bufpos) {
-		int c = fgetc(ifile);
-		if (!is_alpha(c) && !is_number(c) && c != '_') {
-			ungetc(c, ifile);
-			break;
-		}
-		if (bufpos + 1 > max_lexem_len)
-			die(msg_lxm_len_limit, start->row, start->col, max_lexem_len);
-		pos_next(pos, c);
-		buffer[bufpos] = c;
-	}
-	if (bufpos == 0)
-		die("%d, %d: %s\n", start->row, start->col, msg_fname_zero);
-	buffer[bufpos] = 0;
-	dt->str_value = sstrdup(buffer);
-}
+EAT_TMP(eat_name, 1, is_alpha(c) || is_number(c), 0, 0, NULL)
+EAT_TMP(eat_variable, 0, is_alpha(c) || is_number(c) || \
+		c == '_' || c == '.', 1, 1, msg_var_zero)
+EAT_TMP(eat_number, 1, is_number(c), 1, 0, NULL)
+EAT_TMP(eat_func_name, 0, is_alpha(c) || is_number(c) || c == '_',
+		1, 1, msg_fname_zero)
 
 static void lexem_clarify(char *buffer, enum lexem_type *lt)
 {
@@ -364,7 +315,8 @@ char *lexem_names[] = {
 	[lx_number]			=	"number",
 	[lx_equal_sign]		=	"equal sign",
 	[lx_func_decl]		=	"function declaration",
-	[lx_func_name]		=	"function",
+	[lx_global_name]	=	"raw global name",
+	[lx_gn_rmp]			=	"global name",	/**/
 	[lx_int_spec]		=	"integer type specifier",
 	[lx_cmd_add]		=	P"add",
 	[lx_cmd_copy]		=	P"copy",
@@ -376,7 +328,7 @@ char *lexem_name(char *buf, enum lexem_type lt, int v, union lexem_data *dt)
 	sprintf(buf, lexem_names[lt]);
 
 	if (lt < lx_new_line && v) {
-		if (lt == lx_var_remapped)
+		if (lt >= lx_var_remapped)
 			sprintf(buf + strlen(lexem_names[lt]), "[%d]", dt->number);
 		else
 			sprintf(buf + strlen(lexem_names[lt]), "[%s]", dt->str_value);

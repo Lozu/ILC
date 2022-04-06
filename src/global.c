@@ -14,6 +14,8 @@ char dbg_lifespan = 1;
 char dbg_allocation = 1;
 char dbg_emit_borders = 1;
 
+char dbg_free_all_mem = 1;
+
 static const char *error_prefix = "error";
 static const char *warn_prefix = "warning";
 static const char *malloc_failed = "malloc failure";

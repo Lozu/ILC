@@ -13,6 +13,8 @@ extern char dbg_lifespan;
 extern char dbg_allocation;
 extern char dbg_emit_borders;
 
+extern char dbg_free_all_mem;
+
 extern FILE *output_file;
 
 extern const char *lbl_func_end;

@@ -21,99 +21,124 @@ struct str_tree {
 	int curr_val;
 };
 
+static const char *msg_dbg_var = "Variable remapping";
+static const char *msg_dbg_gn = "Global names remapping";
 static const struct node null = { NULL, -1, 0, &null, &null, &null };
 
 static struct str_tree *t_init();
 static int add_unique(struct str_tree *t, char *s);
 
-static void remap_var(struct lexem_list *res, struct lexem_block *b,
+#define REMAP(func_name, tbl_type, table_fill_func, debug_func, \
+		lx_from, lx_to) \
+struct lexem_list * func_name(struct lexem_list *l, struct tbl_type *tb) \
+{ \
+	struct lexem_list *res = ll_init(); \
+	struct lexem_block bdata; \
+	struct str_tree *var_tree = t_init(); \
+ \
+	while (ll_get(l, &bdata)) { \
+		if (bdata.lt == lx_from) { \
+			bdata.dt.number = add_unique(var_tree, bdata.dt.str_value); \
+			bdata.lt = lx_to; \
+		} \
+		ll_add(res, &bdata); \
+	} \
+ \
+	table_fill_func(tb, var_tree); \
+	debug_func(tb, res); \
+ \
+	free(l); \
+	free(var_tree); \
+	return res; \
+}
+
+static void table_fill_gn_sym_tbl(struct gn_sym_tbl *tb,
 		struct str_tree *t);
-static void var_table_fill(struct sym_tbl *tb, struct str_tree *t);
-static void debug_function_remapped(struct lexem_list *l,
-		struct tbl_entry *array, int len);
-	
-struct lexem_list *remap(struct lexem_list *l, struct sym_tbl *tb)
-{
-	struct lexem_list *res = ll_init();
-	struct lexem_block bdata;
-	struct str_tree *var_tree = t_init();
+static void table_fill_var_sym_tbl(struct var_sym_tbl *tb,
+		struct str_tree *t);
+static void debug_gn_sym_tbl(struct gn_sym_tbl*tb, struct lexem_list *l);
+static void debug_var_sym_tbl(struct var_sym_tbl*tb, struct lexem_list *l);
 
-	while (ll_get(l, &bdata)) {
-		if (bdata.lt == lx_variable)
-			remap_var(res, &bdata, var_tree);
-		else
-			ll_add(res, &bdata);
-	}
-	var_table_fill(tb, var_tree);
-	debug_function_remapped(res, tb->var_array, tb->var_arr_len);
+REMAP(remap_gns, gn_sym_tbl, table_fill_gn_sym_tbl, debug_gn_sym_tbl,
+		lx_global_name, lx_gn_rmp)
+REMAP(remap_vars, var_sym_tbl, table_fill_var_sym_tbl, debug_var_sym_tbl,
+		lx_variable, lx_var_remapped)
 
-	free(l);
-	free(var_tree);
-	return res;
+#define TABLE_FILL(tbl_type, tbl_entry_type, tt_func) \
+static void table_fill_ ## tbl_type (struct tbl_type *tb, \
+		struct str_tree *t) \
+{ \
+	tb->len = t->curr_val; \
+	if (tb->len == 0) { \
+		tb->vec = NULL; \
+		return; \
+	} \
+	tb->vec = smalloc(tb->len * sizeof(struct tbl_entry_type)); \
+	tt_func(tb, t); \
 }
 
-static void remap_var(struct lexem_list *res, struct lexem_block *b,
-		struct str_tree *t) 
-{
-	b->dt.number = add_unique(t, b->dt.str_value);
-	b->lt = lx_var_remapped;
-	ll_add(res, b);
+static void transform_tree_gn_sym_tbl(struct gn_sym_tbl *tb,
+		struct str_tree *t);
+static void transform_tree_var_sym_tbl(struct var_sym_tbl *tb,
+		struct str_tree *t);
+
+TABLE_FILL(gn_sym_tbl, gn_tbl_entry, transform_tree_gn_sym_tbl)
+TABLE_FILL(var_sym_tbl, var_tbl_entry, transform_tree_var_sym_tbl)
+
+#define __TRANSFORM_TREE(tbl_type) \
+static void __transform_tree_ ## tbl_type(struct tbl_type *tb, \
+		struct node *null, struct node *x) \
+{ \
+	if (x != null) { \
+		__transform_tree_ ## tbl_type(tb, null, x->left); \
+		__transform_tree_ ## tbl_type(tb, null, x->right); \
+		tb->vec[x->value].name =  x->key; \
+		free(x); \
+	} \
 }
 
-static void transform_tree(struct tbl_entry *tbe, struct str_tree *t);
+__TRANSFORM_TREE(gn_sym_tbl)
+__TRANSFORM_TREE(var_sym_tbl)
 
-static void var_table_fill(struct sym_tbl *tb, struct str_tree *t)
-{
-	tb->var_arr_len = t->curr_val;
-	if (tb->var_arr_len == 0) {
-		tb->var_array = NULL;
-		return;
-	}
-	tb->var_array = smalloc(tb->var_arr_len * sizeof(struct tbl_entry));
-	transform_tree(tb->var_array, t);
+#define TRANSFORM_TREE(tbl_type) \
+static void transform_tree_ ## tbl_type(struct tbl_type *tb, \
+		struct str_tree *t) \
+{ \
+	__transform_tree_ ## tbl_type(tb, t->null, t->root); \
 }
 
+TRANSFORM_TREE(gn_sym_tbl)
+TRANSFORM_TREE(var_sym_tbl)
 
-static void __transform_tree(struct tbl_entry *array, struct node *null,
-		struct node *x);
-
-static void transform_tree(struct tbl_entry *tbe, struct str_tree *t)
-{
-	__transform_tree(tbe, t->null, t->root);
+#define DEBUG_REMAPPED(tbl_type, title_msg) \
+static void debug_ ## tbl_type(struct tbl_type *tb, struct lexem_list *l) \
+{ \
+	int i; \
+	if (dbg_function_remapped == 0) \
+		return; \
+	eprintf("---%s---\n", title_msg); \
+	ll_print(stderr, l); \
+	eprintf("\tTable\n"); \
+	for (i = 0; i < tb->len; ++i) { \
+		eprintf("\t%d: \'%s\'\n", i, tb->vec[i].name); \
+	} \
+	eprintf("\n"); \
 }
 
-static void __transform_tree(struct tbl_entry *array, struct node *null,
-		struct node *x)
-{
-	if (x != null) {
-		__transform_tree(array, null, x->left);
-		__transform_tree(array, null, x->right);
-		array[x->value].name = x->key;
-		free(x);
-	}
+DEBUG_REMAPPED(gn_sym_tbl, msg_dbg_gn)
+DEBUG_REMAPPED(var_sym_tbl, msg_dbg_var)
+
+#define SYM_TBL_FREE(tbl_type) \
+void tbl_type ## _free(struct tbl_type *t) \
+{ \
+	int i; \
+	for (i = 0; i < t->len; ++i) \
+		free(t->vec[i].name); \
+	free(t->vec); \
 }
 
-static void debug_function_remapped(struct lexem_list *l,
-		struct tbl_entry *array, int len)
-{
-	int i;
-	if (dbg_function_remapped == 0)
-		return;
-	eprintf("---Function remapped---\n");
-	ll_print(stderr, l);
-	eprintf("Variables:\n");
-	for (i = 0; i < len; ++i)
-		eprintf("\t%d: \'%s\'\n", i, array[i].name);
-	eprintf("\n");
-}
-
-void sym_tbl_free(struct sym_tbl *s)
-{
-	int i;
-	for (i = 0; i < s->var_arr_len; ++i)
-		free(s->var_array[i].name);
-	free(s->var_array);
-}
+SYM_TBL_FREE(gn_sym_tbl)
+SYM_TBL_FREE(var_sym_tbl)
 
 static struct node *getnode(struct str_tree *t);
 

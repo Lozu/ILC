@@ -2,6 +2,7 @@
 #define FUNC_H
 
 #include "remap.h"
+#include "process.h"
 #include "lparse.h"
 
 enum {
@@ -46,12 +47,13 @@ struct function {
 
 	char type;
 	int argnum;
-	struct sym_tbl stb;
+	struct var_sym_tbl stb;
 	struct cmd_list *cl;
 	struct alloc *alloc_table;
 };
 
-void func_header_form(struct lexem_list *l, struct function *f);
+void func_header_form(struct lexem_list *l, struct function *f,
+		struct gn_sym_tbl *st);
 void cmd_form(struct lexem_list *l, struct function *f);
 void cmd_list_free(struct cmd_list *l);
 
