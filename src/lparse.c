@@ -14,6 +14,7 @@ static const char *msg_fname_zero =
 	"function name can't be empty string";
 static const char *msg_inv_sym = "invalid symbol";
 
+static const char *str_global_spec = "global";
 static const char *str_func_decl = "func";
 static const char *str_int_spec = "i";
 static const char *str_cmd_add = "add";
@@ -106,7 +107,8 @@ static void eat_number(FILE *ifile, char *buffer, union lexem_data *dt,
 static void eat_func_name(FILE *ifile, char *buffer, union lexem_data *dt,
 		struct coord *start, struct position *pos);
 
-static void lexem_clarify(char *buffer, enum lexem_type *lt);
+static void lexem_clarify(char *buffer, enum lexem_type *lt,
+		struct coord *pos);
 
 static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 	   	struct lexem_list *ll)
@@ -143,7 +145,7 @@ static void eat_lexem(FILE *ifile, char *buffer, struct position *pos,
 		die("%d,%d: %s\n", pos->cor.row, pos->cor.col, msg_inv_sym);
 	}
 	if (b.lt == lx_word)
-		lexem_clarify(buffer, &b.lt);
+		lexem_clarify(buffer, &b.lt, &b.crd);
 	ll_add(ll, &b);
 }
 
@@ -179,7 +181,8 @@ EAT_TMP(eat_number, 1, is_number(c), 1, 0, NULL)
 EAT_TMP(eat_func_name, 0, is_alpha(c) || is_number(c) || c == '_',
 		1, 1, msg_fname_zero)
 
-static void lexem_clarify(char *buffer, enum lexem_type *lt)
+static void lexem_clarify(char *buffer, enum lexem_type *lt,
+		struct coord *pos)
 {
 	if (strcmp(buffer, str_func_decl) == 0)
 		*lt = lx_func_decl;
@@ -191,13 +194,17 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt)
 		*lt = lx_cmd_copy;
 	else if(strcmp(buffer, str_cmd_ret) == 0)
 		*lt = lx_cmd_ret;
+	else if(strcmp(buffer, str_global_spec) == 0)
+		*lt = lx_global_spec;
+	else
+		die("[%d,%d]: unknown lexem\n", pos->row, pos->col);
 }
 
 static void debug_global_lexem_parse(struct lexem_list *l)
 {
 	if (dbg_global_lexem_parse == 0)
 		return;
-	eprintf("---Global lexem parse---\n");
+	eprintf("----Global lexem parse----\n");
 	ll_print(stderr, l);
 	eprintf("\n");
 }
@@ -254,7 +261,7 @@ int lexem_clever_get(struct lexem_list *l, struct lexem_block *b,
 	}
 	for (i = 0; i < ltvec_len; ++i) {
 		if (ltvec[i] >= 1000000) {
-			if (b->lt >= ltvec[i] - 1000000)
+			if (b->lt > ltvec[i] - 1000000)
 				return i;
 		} else if (b->lt == ltvec[i]) {
 			return i;
@@ -314,10 +321,12 @@ char *lexem_names[] = {
 	[lx_close_brace]	=	"closebrace",
 	[lx_number]			=	"number",
 	[lx_equal_sign]		=	"equal sign",
+	[lx_global_spec]	=	"global spec",
 	[lx_func_decl]		=	"function declaration",
 	[lx_global_name]	=	"raw global name",
 	[lx_gn_rmp]			=	"global name",	/**/
 	[lx_int_spec]		=	"integer type specifier",
+	[lx_cmd]			=	"command",
 	[lx_cmd_add]		=	P"add",
 	[lx_cmd_copy]		=	P"copy",
 	[lx_cmd_ret]		=	P"ret"

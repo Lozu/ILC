@@ -5,13 +5,18 @@
 
 #include "global.h"
 
+char dbg_acts_start = 1;
 char dbg_settings = 1;
 char dbg_global_lexem_parse = 1;
+char dbg_gn_borders = 1;
 char dbg_function_header = 1;
-char dbg_function_remapped = 1;
+char dbg_vars_remapped = 1;
 char dbg_commands = 1;
 char dbg_lifespan = 1;
 char dbg_allocation = 1;
+char dbg_fcall_list = 1;
+char dbg_gn_pre = 1;
+char dbg_gn_post = 1;
 char dbg_emit_borders = 1;
 
 char dbg_free_all_mem = 1;

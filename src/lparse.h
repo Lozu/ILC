@@ -20,10 +20,12 @@ enum lexem_type {
 	lx_close_brace,
 	lx_equal_sign,
 
+	lx_global_spec,
 	lx_func_decl,
 	lx_int_spec,
 
-	lx_cmd_copy = 1000,
+	lx_cmd = 999,
+	lx_cmd_copy = 1001,
 	lx_cmd_add,
 	lx_cmd_ret
 };

@@ -16,26 +16,30 @@ enum {
 	r13,
 	r14,
 	r15,
+
 	rax, /* Temporary register */
-	registers_number = 3
+	rsp,
+	rbp,
+
+	registers_number = rax - 1,
+	mem = (1 << 30),
+	op_sbuf_len = 20
 };
 
-extern const char *reg_names[];
+static inline int is_reg(int val)
+{
+	return val < 1000;
+}
 
-enum alloc_type {
-	at_mem,
-	at_reg
-};
+static inline int is_mem(int val)
+{
+	return val >= 1000;
+}
 
 struct alloc_phase {
-	enum alloc_type type;
 	int start;
 	int end;
-
-	union {
-		int reg;
-		int offset;
-	};
+	int stid; /* if < 1000 then reg=& else memory=&-mem */
 	struct alloc_phase *next;
 };
 
@@ -54,5 +58,8 @@ struct function;
 
 struct alloc *allocate(struct function *f);
 void alloc_free(struct alloc *a);
+
+#define OPS(op, br) ({ char *buf = alloca(op_sbuf_len); op_string((op), buf, (br)); })
+char *op_string(int op, char *buf, int basereg);
 
 #endif

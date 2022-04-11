@@ -2,10 +2,10 @@
 #define FUNC_H
 
 #include "remap.h"
-#include "process.h"
 #include "lparse.h"
 
 enum {
+	cmd_funccall,
 	cmd_copy,
 	cmd_add,
 	cmd_ret
@@ -26,9 +26,12 @@ struct command {
 	struct coord pos;
 
 	struct cmd_unit ret_var;
+	int fid;
+	char *fname;
 
 	struct cmd_unit *args;
 	int argnum;
+	char *pat;
 };
 
 struct cmd_list_el {
@@ -52,9 +55,23 @@ struct function {
 	struct alloc *alloc_table;
 };
 
-void func_header_form(struct lexem_list *l, struct function *f,
-		struct gn_sym_tbl *st);
-void cmd_form(struct lexem_list *l, struct function *f);
-void cmd_list_free(struct cmd_list *l);
+struct fcall_list_el {
+	int fid;
+	struct coord pos;
+	char *pattern;
+	struct fcall_list_el *next;
+};
 
+struct fcall_list {
+	struct fcall_list_el *first;
+	struct fcall_list_el *last;
+};
+
+void func_header_form(struct lexem_list *l, struct function *f,
+		int gl_spec, struct gn_sym_tbl *tb);
+void cmd_form(struct lexem_list *l, struct function *f,
+		struct gn_sym_tbl *tb, struct fcall_list *cl);
+void cmd_list_free(struct cmd_list *l);
+void debug_fcall_list(struct fcall_list *l, struct gn_sym_tbl *tb);
+void check_functions(struct gn_sym_tbl *tb, struct fcall_list *fcl);
 #endif

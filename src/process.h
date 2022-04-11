@@ -4,6 +4,7 @@
 #include "lparse.h"
 #include "remap.h"
 #include "cmdargs.h"
+#include "func.h"
 
 struct func_list_el {
 	struct function *f;
@@ -19,6 +20,7 @@ struct state {
 	struct lexem_list *l;
 	struct gn_sym_tbl global_tbl;
 	struct func_list fl;
+	struct fcall_list fcl;
 };
 
 void process(struct settings *sts);

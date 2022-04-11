@@ -107,8 +107,7 @@ static void debug_settings_print(struct settings *sts)
 {
 	if (dbg_settings == 0)
 		return;
-	eprintf("---Settings---\n");
+	eprintf("------Settings------\n\n");
 	eprintf("Input file: %s\n", sts->input_file);
 	eprintf("Output file: %s\n", sts->output_file);
-	eprintf("\n");
 }

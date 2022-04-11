@@ -4,13 +4,18 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+extern char dbg_acts_start;
 extern char dbg_settings;
 extern char dbg_global_lexem_parse;
+extern char dbg_gn_borders;
 extern char dbg_function_header;
-extern char dbg_function_remapped;
+extern char dbg_vars_remapped;
 extern char dbg_commands;
 extern char dbg_lifespan;
 extern char dbg_allocation;
+extern char dbg_fcall_list;
+extern char dbg_gn_pre;
+extern char dbg_gn_post;
 extern char dbg_emit_borders;
 
 extern char dbg_free_all_mem;
@@ -18,6 +23,8 @@ extern char dbg_free_all_mem;
 extern FILE *output_file;
 
 extern const char *lbl_func_end;
+
+#define MIN(a, b) ((a) > (b) ? (a) : (b))
 
 static inline void eprintf(char *fmt, ...)
 {
