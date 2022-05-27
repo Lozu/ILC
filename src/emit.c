@@ -16,20 +16,42 @@ static void asm_mov_num(int dest, long long num);
 static void asm_ret();
 static void asm_jmp(char *lbl);
 static void asm_call(char *func);
+static void asm_cqo();
 
 static void il_add(int dest, int src1, int src2);
+static void il_sub(int dest, int src1, int src2);
+static void il_mul(int dest, int src1, int src2);
+static void il_umul(int dest, int src1, int src2);
+static void il_div(int dest, int src1, int src2);
+static void il_udiv(int dest, int src1, int src2);
+static void il_rem(int dest, int src1, int src2);
+static void il_urem(int dest, int src1, int src2);
 
 static void shift_rsp(int offset);
 
-static void emit_funccall(struct alloc *a, struct command *c);
+static void emit_ccall(struct alloc *a, struct command *c);
 static void emit_ccopy(struct alloc *a, struct command *c);
 static void emit_cadd(struct alloc *a, struct command *c);
+static void emit_csub(struct alloc *a, struct command *c);
+static void emit_cmul(struct alloc *a, struct command *c);
+static void emit_cumul(struct alloc *a, struct command *c);
+static void emit_cdiv(struct alloc *a, struct command *c);
+static void emit_cudiv(struct alloc *a, struct command *c);
+static void emit_crem(struct alloc *a, struct command *c);
+static void emit_curem(struct alloc *a, struct command *c);
 static void emit_cret(struct alloc *a, struct command *c);
 
 static void (*emit_cfunc_array[])(struct alloc *a, struct command *c) = {
-	emit_funccall,
+	emit_ccall,
 	emit_ccopy,
 	emit_cadd,
+	emit_csub,
+	emit_cmul,
+	emit_cumul,
+	emit_cdiv,
+	emit_cudiv,
+	emit_crem,
+	emit_curem,
 	emit_cret
 };
 
@@ -134,13 +156,13 @@ static void move_single(int pos, struct alloc *a, struct cmd_unit *u)
 	asm_mov_wbreg(vs->curr->stid, prev_offset, rbp);
 }
 
-#define ARG(n) a->vec[c->args[(n)].id].curr
-#define RET a->vec[c->ret_var.id].curr
-
 struct args_stack {
 	int offset;
 	int stack[func_max_args];
 };
+
+#define ARG(n) a->vec[c->args[(n)].id].curr
+#define RET a->vec[c->ret_var.id].curr
 
 static void astack_add(struct args_stack *ast, int loc);
 static int astack_get(struct args_stack *ast, int *loc);
@@ -148,7 +170,7 @@ static int astack_get(struct args_stack *ast, int *loc);
 static void push_func_args(struct alloc *a, struct command *c,
 		struct args_stack *ast, int *offset);
 
-static void emit_funccall(struct alloc *a, struct command *c)
+static void emit_ccall(struct alloc *a, struct command *c)
 {
 	struct args_stack ast;
 	int offset = 0;
@@ -162,7 +184,7 @@ static void emit_funccall(struct alloc *a, struct command *c)
 	}
 
 	push_func_args(a, c, &ast, &offset);
-	asm_call(c->fname);
+	asm_call(c->args[0].str);
 	shift_rsp(-offset);
 
 	for (r = 0; r <= registers_number - 1; ++r) {
@@ -180,7 +202,7 @@ static void push_func_args(struct alloc *a, struct command *c,
 	int avail_regs = MIN(6, registers_number);
 	int aregsc = 0;
 	int i;
-	for (i = 0; i < c->argnum; ++i) {
+	for (i = 1; i < c->argnum; ++i) {
 		int id = ARG(i)->stid;
 		int src_pos = is_reg(id) ? mem + id * 8 : id;
 
@@ -237,6 +259,41 @@ static void emit_cadd(struct alloc *a, struct command *c)
 	il_add(RET->stid, ARG(0)->stid, ARG(1)->stid);
 }
 
+static void emit_csub(struct alloc *a, struct command *c)
+{
+	il_sub(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_cmul(struct alloc *a, struct command *c)
+{
+	il_mul(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_cumul(struct alloc *a, struct command *c)
+{
+	il_umul(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_cdiv(struct alloc *a, struct command *c)
+{
+	il_div(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_cudiv(struct alloc *a, struct command *c)
+{
+	il_udiv(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_crem(struct alloc *a, struct command *c)
+{
+	il_rem(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
+static void emit_curem(struct alloc *a, struct command *c)
+{
+	il_urem(RET->stid, ARG(0)->stid, ARG(1)->stid);
+}
+
 static void emit_cret(struct alloc *a, struct command *c)
 {
 	if (c->argnum == 1)
@@ -285,6 +342,8 @@ static void asm_mov_num(int dest, long long num)
 
 static void shift_rsp(int offset)
 {
+	if (offset == 0)
+		return;
 	oprintf("\t%s %s, %d\n", offset > 0 ? "add" : "sub",
 			OPS(rsp, -1), abs(offset));
 }
@@ -304,6 +363,11 @@ static void asm_call(char *func)
 	oprintf("\tcall %s\n", func);
 }
 
+static void asm_cqo()
+{
+	oprintf("\tcqo\n");
+}
+
 static void il_add(int dest, int src1, int src2)
 {
 	if (is_reg(dest) || (is_reg(src1) && is_reg(src2))) {
@@ -314,4 +378,100 @@ static void il_add(int dest, int src1, int src2)
 		oprintf("\tadd %s, %s\n", OPS(rax, rbp), OPS(src2, rbp));
 		asm_mov_wbreg(dest, rax, rbp);
 	}
+}
+
+static void il_sub(int dest, int src1, int src2)
+{
+	if (is_reg(dest) || (is_reg(src1) && is_reg(src2))) {
+		asm_mov_wbreg(dest, src1, rbp);
+		oprintf("\tsub %s, %s\n", OPS(dest, rbp), OPS(src2, rbp));
+	} else {
+		asm_mov_wbreg(rax, src1, rbp);
+		oprintf("\tsub %s, %s\n", OPS(rax, rbp), OPS(src2, rbp));
+		asm_mov_wbreg(dest, rax, rbp);
+	}
+}
+
+static void il_mul(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	oprintf("\timul %s\n",  OPS(src2, rbp));
+	asm_mov_wbreg(dest, rax, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
+}
+
+static void il_umul(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	oprintf("\tmul %s\n",  OPS(src2, rbp));
+	asm_mov_wbreg(dest, rax, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
+}
+
+static void il_div(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	asm_cqo();
+	oprintf("\tidiv %s\n",  OPS(src2, rbp));
+	asm_mov_wbreg(dest, rax, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
+}
+
+static void il_udiv(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	asm_mov_num(rdx, 0);
+	oprintf("\tdiv %s\n",  OPS(src2, rbp));
+	asm_mov_wbreg(dest, rax, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
+}
+
+static void il_rem(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	asm_cqo();
+	oprintf("\tidiv %s\n",  OPS(src2, rbp));
+	if (dest != rdx)
+		asm_mov_wbreg(dest, rdx, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
+}
+
+static void il_urem(int dest, int src1, int src2)
+{
+	if (dest != rdx)
+		asm_push(rdx);
+
+	asm_mov_wbreg(rax, src1, rbp);
+	asm_mov_num(rdx, 0);
+	oprintf("\tdiv %s\n",  OPS(src2, rbp));
+	if (dest != rdx)
+		asm_mov_wbreg(dest, rdx, rbp);
+
+	if (dest != rdx)
+		asm_pop(rdx);
 }

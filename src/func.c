@@ -15,6 +15,13 @@
 char *command_patterns[][3] = {
 	[cmd_copy]	=	{ "i:n", "i:i", NULL },
 	[cmd_add]	=	{ "i:ii", NULL },
+	[cmd_sub]	=	{ "i:ii", NULL },
+	[cmd_mul]	=	{ "i:ii", NULL },
+	[cmd_umul] 	=	{ "i:ii", NULL },
+	[cmd_div]	=	{ "i:ii", NULL },
+	[cmd_udiv]	=	{ "i:ii", NULL },
+	[cmd_rem]	=	{ "i:ii", NULL },
+	[cmd_urem]	=	{ "i:ii", NULL },
 	[cmd_ret]	=	{ "v:", "v:i", NULL }
 };
 
@@ -147,7 +154,6 @@ static void availability_check(int func_args,
 		struct cmd_list *l, int var_number);
 static void type_validity_check(struct cmd_list *l, struct fcall_list *fcl);
 
-/* TODO: Add funccall support */
 void cmd_form(struct lexem_list *l, struct function *f,
 		struct gn_sym_tbl *tb, struct fcall_list *fcl)
 {
@@ -169,123 +175,137 @@ static void cmd_primal_form(struct lexem_list *l, struct function *f,
 	f->cl = cl;
 }
 
-static void cmd_eat_args(struct lexem_list *l, struct command *c);
+static int eat_dest(struct lexem_list *l, struct lexem_block *b);
+static void eat_cmd(struct lexem_list *l, struct lexem_block *b);
+static void cmd_eat_args(struct lexem_list *l, struct command *c,
+		struct gn_sym_tbl *tbl);
 
 static int cmd_extract(struct lexem_list *l, struct cmd_list *cl,
 		struct gn_sym_tbl *tbl)
 {
 	struct command cmd;
-	int type_ready = 0;
+	int status;
 	struct lexem_block b;
 
-	enum lexem_type  vec1[5] = { lx_new_line, lx_close_brace,
-			lx_var_remapped, lx_gn_rmp,  1000000 + lx_cmd };
-	enum lexem_type vec2[1] = { lx_equal_sign };
-	enum lexem_type vec3[2] = { lx_gn_rmp, 1000000 + lx_cmd };
-	switch(lexem_clever_get(l, &b, vec1, 5)) {
-	case 0:
-		return 1;
-	case 1:
-		return 0;
-	case 2:
+	status = eat_dest(l, &b);
+	if (status < 2)
+		return status;
+	if (status == 2) {
 		cmd.ret_var.type = 'i';
 		cmd.ret_var.id = b.dt.number;
 		cmd.ret_var.pos = b.crd;
-		lexem_clever_get(l, &b, vec2, 1);
-		lexem_clever_get(l, &b, vec3, 2);
-		type_ready = 1;
-	case 3:
-	case 4:
-		if (type_ready == 0)
-			cmd.ret_var.type = 'v';
-		if (b.lt == lx_gn_rmp) {
-			cmd.type = cmd_funccall;
-			cmd.fid = b.dt.number;
-			cmd.fname = tbl->vec[cmd.fid].name;
-		} else {
-			cmd.type = b.lt - 1000;
-		}
-		cmd.pos = b.crd;
-		break;
+		eat_cmd(l, &b);
+	} else {
+		cmd.ret_var.type = 'v';
 	}
-	cmd_eat_args(l, &cmd);
+	cmd.pos = b.crd;
+	cmd.type = b.lt - 1000;
+
+	cmd_eat_args(l, &cmd, tbl);
 	cmd_list_add(cl, &cmd);
 	return 1;
 }
 
-static int cmd_eat_arg(int is_func, struct lexem_list *l,
-		struct cmd_unit *arg, int *pos);
-
-static void cmd_eat_args(struct lexem_list *l, struct command *c)
+static int eat_dest(struct lexem_list *l, struct lexem_block *b)
 {
-	int is_func = c->type == cmd_funccall;
-	struct cmd_unit argbuf[func_max_args];
-	int argbuf_pos = 0;
-	struct lexem_block b;
-	enum lexem_type vec1[1] = { lx_parenleft };
-	enum lexem_type vec2[1] = { lx_new_line };
-
-	if (is_func)
-		lexem_clever_get(l, &b, vec1, 1);
-
-	while (argbuf_pos < func_max_args) {
-		if (cmd_eat_arg(is_func, l, argbuf + argbuf_pos, &argbuf_pos) == 0)
-			break;
+	struct lexem_block b2;
+	enum lexem_type vec1[4] = { lx_close_brace, lx_new_line,
+			lx_var_remapped, lx_cmd + 1000000 };
+	enum lexem_type vec2[1] = { lx_equal_sign };
+	switch(lexem_clever_get(l, b, vec1, 4)) {
+	case 0:
+		return 0;
+	case 1:
+		return 1;
+	case 2:
+		lexem_clever_get(l, &b2, vec2, 1);
+		return 2;
+	case 3:
+		return 3;
 	}
-
-	if (is_func)
-		lexem_clever_get(l, &b, vec2, 1);
-
-	if (argbuf_pos == func_max_args)
-		die("%d: %s\n", c->pos.row, msg_too_many_args);
-
-	c->argnum = argbuf_pos;
-	if (argbuf_pos > 0) {
-		c->args = smalloc(argbuf_pos * sizeof(struct cmd_unit));
-		memcpy(c->args, argbuf, argbuf_pos * sizeof(struct cmd_unit));
-	}
-
-	c->pat = form_pattern(c->ret_var.type, c->args, c->argnum);
+	return -1; /* Unreachable */
 }
 
-
-static int cmd_get_cmdarg(struct lexem_list *l,
-		struct cmd_unit *arg, int *pos);
-static int cmd_get_funcarg(struct lexem_list *l,
-		struct cmd_unit *arg, int *pos);
-
-static int cmd_eat_arg(int is_func, struct lexem_list *l,
-		struct cmd_unit *arg, int *pos)
+static void eat_cmd(struct lexem_list *l, struct lexem_block *b)
 {
-	struct lexem_block b;
-	enum lexem_type vec1[2] = { lx_new_line, lx_coma };
-	enum lexem_type vec2[2] = { lx_parenright, lx_coma };
+	enum lexem_type vec[1] = { lx_cmd + 1000000 };
+	lexem_clever_get(l, b, vec, 1);
+}
 
-	if (!is_func) {
-		if (cmd_get_cmdarg(l, arg, pos) == 0)
-			return 0;
-		else
-			return lexem_clever_get(l, &b, vec1, 2);
-	} else {
-		if (cmd_get_funcarg(l, arg, pos) == 0)
-			return 0;
-		else
-			return lexem_clever_get(l, &b, vec2, 2);
+static int __eat_args(struct lexem_list *l, struct command *c,
+		enum lexem_type end, struct cmd_unit *argbuf);
+
+static void cmd_eat_args(struct lexem_list *l, struct command *c,
+		struct gn_sym_tbl *tbl)
+{
+	/* +1 since function name is first argument of call command */
+	struct cmd_unit argbuf[func_max_args + 1];
+	int argbuf_pos = 0;
+	int is_call = c->type == cmd_call;
+
+	struct lexem_block b;
+	enum lexem_type vec1[1] = { lx_gn_rmp };
+	enum lexem_type vec2[1] = { lx_parenleft };
+	enum lexem_type end = lx_new_line;
+
+	if (is_call) {
+		lexem_clever_get(l, &b, vec1, 1);
+		argbuf[0].type = 'g';
+		argbuf[0].id = b.dt.number;
+		argbuf[0].str = tbl->vec[b.dt.number].name;
+		lexem_clever_get(l, &b, vec2, 1);
+		argbuf_pos = 1;
+		end = lx_parenright;
 	}
+	argbuf_pos += __eat_args(l, c, end, argbuf + is_call);
+
+	c->argnum = argbuf_pos;
+	if (c->argnum > 0) {
+		c->args = smalloc(c->argnum * sizeof(struct cmd_unit));
+		memcpy(c->args, argbuf, c->argnum * sizeof(struct cmd_unit));
+	}
+
+	c->pat = form_pattern(c->ret_var.type, c->args + is_call,
+			c->argnum - is_call);
+}
+
+static int __eat_arg(struct lexem_list *l, enum lexem_type end,
+		struct cmd_unit *arg, int *pos);
+
+static int __eat_args(struct lexem_list *l, struct command *c,
+		enum lexem_type end, struct cmd_unit *argbuf)
+{
+	int i = 0;
+	struct lexem_block b;
+	enum lexem_type vec[1] = { lx_new_line };
+
+	while (i < func_max_args) {
+		if (__eat_arg(l, end, argbuf + i, &i) == 0)
+			break;
+	}
+	if (i == func_max_args)
+		die("%d: %s\n", c->pos.row, msg_too_many_args);
+	if (c->type == cmd_call)
+		lexem_clever_get(l, &b, vec, 1);
+	return i;
 }
 
 static long long convert_number(char *s, struct coord *pos);
 
-static int cmd_get_cmdarg(struct lexem_list *l,
+static int __eat_arg(struct lexem_list *l, enum lexem_type end,
 		struct cmd_unit *arg, int *pos)
 {
 	struct lexem_block b;
-	enum lexem_type vec[3] = { lx_var_remapped, lx_number, lx_new_line };
-
-	switch(lexem_clever_get(l, &b, vec, 3)) {
+	enum lexem_type vec1[3] = { end, lx_number, lx_var_remapped };
+	enum lexem_type vec2[2] = { end, lx_coma };
+	switch(lexem_clever_get(l, &b, vec1, 3)) {
 	case 0:
-		arg->type = 'i';
-		arg->id = b.dt.number;
+		if (*pos == 0)
+			return 0;
+		die("%d,%d: %s - expected %s or %s, not %s\n", b.crd.row, b.crd.col,
+				LNAME(lx_number, 0, NULL),
+				LNAME(lx_var_remapped, 0, NULL),
+				LNAME(end, 0, NULL));
 		break;
 	case 1:
 		arg->type = 'n';
@@ -293,16 +313,12 @@ static int cmd_get_cmdarg(struct lexem_list *l,
 		free(b.dt.str_value);
 		break;
 	case 2:
-		if (*pos == 0)
-			return 0;
-		else
-			die("%d,%d: %s - expected %s or %s, not %s\n",
-					b.crd.row, b.crd.col, LNAME(lx_var_remapped, 0, NULL),
-					LNAME(lx_number, 0, NULL), LNAME(lx_new_line, 0, NULL));
+		arg->type = 'i';
+		arg->id = b.dt.number;
+		break;
 	}
-	arg->pos = b.crd;
 	++*pos;
-	return 1;
+	return lexem_clever_get(l, &b, vec2, 2);
 }
 
 static long long convert_number(char *s, struct coord *pos)
@@ -315,29 +331,6 @@ static long long convert_number(char *s, struct coord *pos)
 			die("%d,%d:\'%s\': %s\n", pos->row, pos->col, s, msg_underflow);
 	}
 	return res;
-}
-
-static int cmd_get_funcarg(struct lexem_list *l,
-		struct cmd_unit *arg, int *pos)
-{
-	struct lexem_block b;
-	enum lexem_type vec[2] = { lx_var_remapped, lx_new_line };
-	switch(lexem_clever_get(l, &b, vec, 1)) {
-	case 0:
-		arg->type = 'i';
-		arg->id = b.dt.number;
-		break;
-	case 1:
-		if (*pos == 0)
-			return 0;
-		else
-			die("%d,%d: %s - expected %s, not %s\n", b.crd.row, b.crd.col,
-					LNAME(lx_var_remapped, 0, NULL),
-					LNAME(lx_new_line, 0, NULL));
-	}
-	arg->pos = b.crd;
-	++*pos;
-	return 1;
 }
 
 static void debug_print_arg(struct cmd_unit *u, int last);
@@ -355,12 +348,8 @@ static void debug_commands(struct cmd_list *l, struct gn_sym_tbl *tb)
 		else
 			eprintf("  \t");
 
-		if (tmp->cmd.type != cmd_funccall) {
-			eprintf("%s(%s):\t", LNAME(tmp->cmd.type + 1000, 0, NULL),
-					tmp->cmd.pat);
-		} else {
-			eprintf("%s(%s):\t", tb->vec[tmp->cmd.fid].name, tmp->cmd.pat);
-		}
+		eprintf("%s(%s):\t", LNAME(tmp->cmd.type + 1000, 0, NULL),
+				tmp->cmd.pat);
 
 		for (i = 0; i < tmp->cmd.argnum; ++i) {
 			debug_print_arg(tmp->cmd.args + i,
@@ -378,6 +367,9 @@ static void debug_print_arg(struct cmd_unit *u, int last)
 		break;
 	case 'i':
 		eprintf("[%lld]", u->id);
+		break;
+	case 'g':
+		eprintf("$%s", u->str);
 		break;
 	}
 	eprintf(!last ?  ", " : "");
@@ -431,12 +423,12 @@ static void type_validity_check(struct cmd_list *l, struct fcall_list *fcl)
 {
 	struct cmd_list_el *tmp;
 	for (tmp = l->first; tmp; tmp = tmp->next) {
-		if (tmp->cmd.type != cmd_funccall) {
+		if (tmp->cmd.type != cmd_call) {
 			char *template = tv_check_args(&tmp->cmd);
 			tv_check_ret(template[0], &tmp->cmd);
 			free(tmp->cmd.pat);
 		} else {
-			fcall_list_add(fcl, tmp->cmd.fid, tmp->cmd.pat, &tmp->cmd.pos);
+			fcall_list_add(fcl, tmp->cmd.args[0].id, tmp->cmd.pat, &tmp->cmd.pos);
 		}
 	}
 }

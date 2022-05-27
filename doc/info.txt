@@ -1,0 +1,51 @@
+IL compiler - intermidiate languare compiler
+
+Intermidiate language is simplified version of QBE language. It is compiled
+to nasm assembly. For now the only available type is 64-bit integer. ILC
+adheres x86_64 abi.
+
+Example
+
+func i $add(%a, %b)
+{
+	%c = add %a, %b
+	ret %c
+}
+
+Commands
+========
+
+If command
+
+	Types
+
+I - variable (%a)
+N - 64-bit integer constant (-17)
+V - void
+
+Command pattern (<arg_type>,<arg2_type>...:<res_type>) desribes what
+argument types each command accepts and what type it returns.
+
+Supported commands
+------------------
+
+1	Copying
+	copy [I:N I:N]
+
+	Copies value of first argument, which can be I or N to the second
+	argument. Resurt must be I.
+
+2. ret [:V I:V]
+	Immediate return from function. If it is provided, first argument
+	will be used as function return value.
+
+3. Ariphmetic operations
+	add sub mul umul div udiv	[I,I:I]
+
+	Addition, subtraction, signed and unsigned multiplication and division.
+
+4. Function call
+	call
+	Usage pattern: call $<func_name>(<arg>, ....)
+
+	Calls specified function with given arguments. All arguments should be I.

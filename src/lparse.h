@@ -25,8 +25,16 @@ enum lexem_type {
 	lx_int_spec,
 
 	lx_cmd = 999,
-	lx_cmd_copy = 1001,
+	lx_cmd_call,
+	lx_cmd_copy,
 	lx_cmd_add,
+	lx_cmd_sub,
+	lx_cmd_mul,
+	lx_cmd_umul,
+	lx_cmd_div,
+	lx_cmd_udiv,
+	lx_cmd_rem,
+	lx_cmd_urem,
 	lx_cmd_ret
 };
 

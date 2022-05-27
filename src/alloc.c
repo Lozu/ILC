@@ -14,8 +14,8 @@ enum {
 };
 
 static const char *reg_names[] = {
-	"rsi",
 	"rdi",
+	"rsi",
 	"rdx",
 	"rcx",
 	"r8",

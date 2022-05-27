@@ -2,8 +2,8 @@
 #define ALLOC_H
 
 enum {
-	rsi,
 	rdi,
+	rsi,
 	rdx,
 	rcx,
 	r8,

@@ -7,7 +7,7 @@ CFLAGS = -Wall -g -O0
 NAME = ilc
 
 # Installation prefix
-prefix = /usr
+prefix = /
 
 # Musl package file (full path). Comment out to do musl-less build.
 # If present IL compiler will be linked with it, instead of system libc.
@@ -35,9 +35,8 @@ ifdef MUSL
 	extragoals += musl
 	rcflags = -nostdinc -I $(localroot)/include
 	rld = $(LD)
-	ldstart = -static -nostdlib\
-			-L $(localroot)/lib\
-			$(localroot)/lib/crt1.o
+	ldstart = -static -nostdlib \
+			-L $(localroot)/lib $(localroot)/lib/crt1.o
 	ldend = -lc
 else
 	rld = $(CC)
@@ -46,7 +45,6 @@ endif
 rcflags += -Wno-discarded-qualifiers
 
 def: cmp
-
 
 %.o: %.c
 	$(CC) $(rcflags) -c -o $@ $<

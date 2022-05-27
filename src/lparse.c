@@ -17,7 +17,15 @@ static const char *msg_inv_sym = "invalid symbol";
 static const char *str_global_spec = "global";
 static const char *str_func_decl = "func";
 static const char *str_int_spec = "i";
+static const char *str_cmd_call = "call";
 static const char *str_cmd_add = "add";
+static const char *str_cmd_sub = "sub";
+static const char *str_cmd_mul = "mul";
+static const char *str_cmd_umul = "umul";
+static const char *str_cmd_div = "div";
+static const char *str_cmd_udiv = "udiv";
+static const char *str_cmd_rem = "rem";
+static const char *str_cmd_urem = "urem";
 static const char *str_cmd_copy = "copy";
 static const char *str_cmd_ret = "ret";
 
@@ -188,8 +196,24 @@ static void lexem_clarify(char *buffer, enum lexem_type *lt,
 		*lt = lx_func_decl;
 	else if(strcmp(buffer, str_int_spec) == 0)
 		*lt = lx_int_spec;
+	else if(strcmp(buffer, str_cmd_call) == 0)
+		*lt = lx_cmd_call;
 	else if(strcmp(buffer, str_cmd_add) == 0)
 		*lt = lx_cmd_add;
+	else if (strcmp(buffer, str_cmd_sub) == 0)
+		*lt = lx_cmd_sub;
+	else if (strcmp(buffer, str_cmd_mul) == 0)
+		*lt = lx_cmd_mul;
+	else if (strcmp(buffer, str_cmd_umul) == 0)
+		*lt = lx_cmd_umul;
+	else if (strcmp(buffer, str_cmd_div) == 0)
+		*lt = lx_cmd_div;
+	else if (strcmp(buffer, str_cmd_udiv) == 0)
+		*lt = lx_cmd_udiv;
+	else if (strcmp(buffer, str_cmd_rem) == 0)
+		*lt = lx_cmd_rem;
+	else if (strcmp(buffer, str_cmd_urem) == 0)
+		*lt = lx_cmd_urem;
 	else if(strcmp(buffer, str_cmd_copy) == 0)
 		*lt = lx_cmd_copy;
 	else if(strcmp(buffer, str_cmd_ret) == 0)
@@ -327,7 +351,15 @@ char *lexem_names[] = {
 	[lx_gn_rmp]			=	"global name",	/**/
 	[lx_int_spec]		=	"integer type specifier",
 	[lx_cmd]			=	"command",
+	[lx_cmd_call]		=	P"call",
 	[lx_cmd_add]		=	P"add",
+	[lx_cmd_sub]		=	P"sub",
+	[lx_cmd_mul]		=	P"mul",
+	[lx_cmd_umul]		=	P"umul",
+	[lx_cmd_div]		=	P"div",
+	[lx_cmd_udiv]		=	P"udiv",
+	[lx_cmd_rem]		=	P"rem",
+	[lx_cmd_urem]		=	P"urem",
 	[lx_cmd_copy]		=	P"copy",
 	[lx_cmd_ret]		=	P"ret"
 };

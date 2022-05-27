@@ -5,9 +5,16 @@
 #include "lparse.h"
 
 enum {
-	cmd_funccall,
+	cmd_call,
 	cmd_copy,
 	cmd_add,
+	cmd_sub,
+	cmd_mul,
+	cmd_umul,
+	cmd_div,
+	cmd_udiv,
+	cmd_rem,
+	cmd_urem,
 	cmd_ret
 };
 
@@ -17,17 +24,16 @@ enum {
 
 struct cmd_unit {
 	char type;
-	long long id;
 	struct coord pos;
+
+	long long id;
+	char *str;
 };
 
 struct command {
 	int type;
 	struct coord pos;
-
 	struct cmd_unit ret_var;
-	int fid;
-	char *fname;
 
 	struct cmd_unit *args;
 	int argnum;
